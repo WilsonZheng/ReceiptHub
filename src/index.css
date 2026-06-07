@@ -23,12 +23,21 @@ body {
   font-family: var(--font-display);
 }
 
-/* 应用壳：fixed + inset:0 把上下边直接钉在屏幕边缘。
-   iOS standalone 启动时 dvh 和 innerHeight 都可能是过期值——
-   唯一可靠的是不依赖任何高度数值，让上下锚点决定布局。 */
+/* 应用壳：fixed + inset:0 把上下边钉在视口边缘 */
 .app-shell {
   position: fixed;
   inset: 0;
+}
+
+/* iOS standalone + black-translucent 状态栏的已知怪癖：
+   WebView 窗口高度 = 屏幕 - 状态栏，但渲染从屏幕顶端开始（整体上移），
+   底部留出一条状态栏高度的空白。修法：把壳加高一个顶部安全区高度补回去。
+   只在 standalone 生效；Safari/Android/桌面 inset-top 为 0 或不匹配，无副作用。 */
+@media all and (display-mode: standalone) {
+  .app-shell {
+    bottom: auto;
+    height: calc(100% + env(safe-area-inset-top));
+  }
 }
 
 /* 次级按钮：链接样文字在移动端太突兀，统一用它（components 层，可被工具类覆盖） */
