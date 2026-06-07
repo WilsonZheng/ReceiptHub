@@ -192,6 +192,24 @@ test('dashboard shows monthly summary, trend, top lists and gst card', async ({ 
   await expect(page.getByText(/Net GST/)).toBeVisible();
 });
 
+test('capture draft survives tab switches and can be discarded', async ({ page }) => {
+  await page.getByPlaceholder('Merchant').fill('Draft Cafe');
+  const chooserPromise = page.waitForEvent('filechooser');
+  await page.getByText('Upload from library').click();
+  await (
+    await chooserPromise
+  ).setFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: PNG });
+  // 切走再切回——草稿（含照片）完好
+  await page.getByRole('button', { name: 'Receipts' }).click();
+  await page.getByRole('button', { name: 'Capture' }).click();
+  await expect(page.getByPlaceholder('Merchant')).toHaveValue('Draft Cafe');
+  await expect(page.locator('[role="button"].h-16')).toBeVisible(); // 照片缩略图还在
+  // 丢弃草稿
+  await page.getByRole('button', { name: 'Discard draft' }).click();
+  await expect(page.getByPlaceholder('Merchant')).toHaveValue('');
+  await expect(page.locator('[role="button"].h-16')).not.toBeVisible();
+});
+
 test('ai extract: upload → button → form filled → save', async ({ page }) => {
   // mock Gemini：返回结构化提取结果
   await page.route('https://generativelanguage.googleapis.com/**', (route) =>

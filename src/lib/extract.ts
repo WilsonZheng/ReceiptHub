@@ -55,15 +55,25 @@ function buildPrompt(categories: Record<Kind, string[]>, locale: Locale): string
     "- kind: 'expense' for receipts/bills the user paid; 'income' only if this is clearly an invoice the user issued to a client. Default 'expense'.",
     `- category: pick the single best match. For expense choose from: ${categories.expense.join(', ')}. For income choose from: ${categories.income.join(', ')}.`,
     `- note: a short useful summary in ${noteLang} (keep original product names): main items/services with quantities, invoice number if present, payment method if visible. Max 120 characters. Separate parts with " · ".`,
+    'If multiple attachments are provided, they are photos/pages of the SAME single receipt or invoice — combine them into one record.',
     'Omit any field you cannot determine confidently.',
   ].join('\n');
 }
 
+const MAX_FILES = 4; // 防 payload 过大；一张票据极少超过 4 页/张
+
 export async function extractReceipt(
-  file: { blob: Blob; kind: PhotoKind },
+  files: { blob: Blob; kind: PhotoKind }[],
   opts: ExtractOpts,
 ): Promise<Extraction> {
-  const mime = file.kind === 'pdf' ? 'application/pdf' : file.blob.type || 'image/webp';
+  const inlineParts = await Promise.all(
+    files.slice(0, MAX_FILES).map(async (f) => ({
+      inline_data: {
+        mime_type: f.kind === 'pdf' ? 'application/pdf' : f.blob.type || 'image/webp',
+        data: await toBase64(f.blob),
+      },
+    })),
+  );
   let res: Response;
   try {
     res = await fetch(ENDPOINT, {
@@ -72,10 +82,7 @@ export async function extractReceipt(
       body: JSON.stringify({
         contents: [
           {
-            parts: [
-              { inline_data: { mime_type: mime, data: await toBase64(file.blob) } },
-              { text: buildPrompt(opts.categories, opts.locale) },
-            ],
+            parts: [...inlineParts, { text: buildPrompt(opts.categories, opts.locale) }],
           },
         ],
         generationConfig: {

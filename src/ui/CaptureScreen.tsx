@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { processFile, type ProcessedFile } from '../lib/image';
+import { clearDraft, emptyDraft, getDraft, isDraftDirty, setDraft } from '../lib/draft';
 import { formatNZD, gstFromTotalCents, parseNZD } from '../lib/money';
 import { extractReceipt, ExtractError } from '../lib/extract';
 import { getAiKey, getConfig } from '../lib/settings';
@@ -15,14 +16,16 @@ const today = () => new Date().toISOString().slice(0, 10);
 export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () => void }) {
   const cameraRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
-  const [files, setFiles] = useState<ProcessedFile[]>([]);
-  const [date, setDate] = useState(today());
-  const [merchant, setMerchant] = useState('');
-  const [total, setTotal] = useState('');
-  const [gstOverride, setGstOverride] = useState<number | null>(null);
-  const [kind, setKind] = useState<Kind>('expense');
-  const [category, setCategory] = useState('');
-  const [note, setNote] = useState('');
+  // 从草稿恢复：切走再切回，所有内容（含照片）都还在
+  const d0 = getDraft();
+  const [files, setFiles] = useState<ProcessedFile[]>(d0.files);
+  const [date, setDate] = useState(d0.date);
+  const [merchant, setMerchant] = useState(d0.merchant);
+  const [total, setTotal] = useState(d0.total);
+  const [gstOverride, setGstOverride] = useState<number | null>(d0.gstOverride);
+  const [kind, setKind] = useState<Kind>(d0.kind);
+  const [category, setCategory] = useState(d0.category);
+  const [note, setNote] = useState(d0.note);
   const [merchants, setMerchants] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -40,8 +43,34 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       .then((rs) => setMerchants([...new Set(rs.map((r) => r.merchant))]));
   }, []);
 
-  // 空间或收支类型切换时，已选分类可能不在新列表里——重置
-  useEffect(() => setCategory(''), [space, kind]);
+  // 空间或收支类型切换时，已选分类可能不在新列表里——重置（首渲染跳过，保护草稿恢复的分类）
+  const firstRun = useRef(true);
+  useEffect(() => {
+    if (firstRun.current) {
+      firstRun.current = false;
+      return;
+    }
+    setCategory('');
+  }, [space, kind]);
+
+  // 每次变更写回草稿
+  useEffect(() => {
+    setDraft({ files, date, merchant, total, kind, category, note, gstOverride });
+  }, [files, date, merchant, total, kind, category, note, gstOverride]);
+
+  function discard() {
+    clearDraft();
+    const e = emptyDraft();
+    setFiles(e.files);
+    setDate(e.date);
+    setMerchant('');
+    setTotal('');
+    setKind('expense');
+    setCategory('');
+    setNote('');
+    setGstOverride(null);
+    setError('');
+  }
 
   // 桌面: 拖拽 + ⌘V 粘贴
   useEffect(() => {
@@ -91,6 +120,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         note,
         files,
       });
+      clearDraft();
       setFiles([]);
       setMerchant('');
       setTotal('');
@@ -113,8 +143,9 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
     setExtracting(true);
     setError('');
     try {
+      // 全部照片一起送（同一票据的多页/多张），extract 内部上限 4 张
       const r = await extractReceipt(
-        { blob: files[0].full, kind: files[0].kind },
+        files.map((f) => ({ blob: f.full, kind: f.kind })),
         { apiKey: aiKey, categories: getConfig().categories[space], locale },
       );
       if (r.kind) setKind(r.kind);
@@ -130,6 +161,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
     } catch (e) {
       if (e instanceof ExtractError && e.reason === 'auth') setError(t('aiErrAuth'));
       else if (e instanceof ExtractError && e.reason === 'rate_limit') setError(t('aiErrRate'));
+      else if (e instanceof ExtractError && e.reason === 'network') setError(t('aiErrNetwork'));
       else setError(t('aiErrOther'));
     } finally {
       setExtracting(false);
@@ -334,6 +366,15 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       >
         {t('save')}
       </button>
+      {isDraftDirty({ files, date, merchant, total, kind, category, note, gstOverride }) && (
+        <button
+          onClick={discard}
+          className="self-center text-xs underline"
+          style={{ color: 'var(--color-ink-muted)' }}
+        >
+          {t('discardDraft')}
+        </button>
+      )}
     </div>
   );
 }

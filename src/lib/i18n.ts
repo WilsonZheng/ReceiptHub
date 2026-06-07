@@ -43,7 +43,10 @@ const en = {
   aiExtracting: 'Reading receipt…',
   aiErrAuth: 'AI key invalid — check Settings',
   aiErrRate: 'AI rate limit hit — try again in a minute',
+  aiErrNetwork: 'Network error — check connection and retry',
   aiErrOther: 'AI extraction failed — fill manually',
+  discardDraft: 'Discard draft',
+  remove: 'Remove',
   aiTitle: 'AI extraction',
   aiKeyPlaceholder: 'Gemini API key (free)',
   aiHint:
@@ -139,7 +142,10 @@ const zh: Record<MsgKey, string> = {
   aiExtracting: '正在识别票据…',
   aiErrAuth: 'AI key 无效——请到设置检查',
   aiErrRate: 'AI 免费额度限流——稍等一分钟再试',
+  aiErrNetwork: '网络出错——检查网络后重试',
   aiErrOther: 'AI 识别失败——请手动填写',
+  discardDraft: '丢弃草稿',
+  remove: '移除',
   aiTitle: 'AI 识别',
   aiKeyPlaceholder: 'Gemini API key（免费）',
   aiHint:

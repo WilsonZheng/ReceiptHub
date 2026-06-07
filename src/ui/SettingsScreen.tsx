@@ -83,6 +83,7 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
   const [config, setLocalConfig] = useState(getConfig());
   const [aiKey, setAiKeyLocal] = useState(getAiKey() ?? '');
   const [aiSaved, setAiSaved] = useState(false);
+  const [showAiKey, setShowAiKey] = useState(false);
   const locale = useLocale();
   const theme = useTheme();
   const t = useT();
@@ -174,12 +175,19 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
         </p>
         <div className="mt-2 flex gap-2">
           <input
-            type="password"
+            type={showAiKey ? 'text' : 'password'}
             value={aiKey}
             onChange={(e) => setAiKeyLocal(e.target.value)}
             placeholder={t('aiKeyPlaceholder')}
             className="field"
           />
+          <button
+            onClick={() => setShowAiKey(!showAiKey)}
+            aria-label="toggle key visibility"
+            className="btn-secondary"
+          >
+            {showAiKey ? '🙈' : '👁'}
+          </button>
           <button
             onClick={() => {
               setAiKey(aiKey);
@@ -191,6 +199,19 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
             {aiSaved ? '✓' : t('saveKey')}
           </button>
         </div>
+        {aiKey && (
+          <button
+            onClick={() => {
+              setAiKey('');
+              setAiKeyLocal('');
+              setShowAiKey(false);
+            }}
+            className="mt-2 rounded-lg px-3 py-1.5 text-xs"
+            style={{ color: 'var(--color-danger)', background: 'var(--color-surface-2)' }}
+          >
+            {t('remove')}
+          </button>
+        )}
       </section>
 
       <section className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
