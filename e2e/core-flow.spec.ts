@@ -213,6 +213,26 @@ test('dashboard: range filters, net balance, tappable trend, category drill-down
   await expect(page.getByText('— Mitre 10')).toBeVisible();
 });
 
+test('future-dated receipt still counted in all-time stats', async ({ page }) => {
+  // 录一张下个月日期的票（票面日期晚于今天是常见情况，统计不得静默排除）
+  const chooserPromise = page.waitForEvent('filechooser');
+  await page.getByText('Upload from library').click();
+  await (
+    await chooserPromise
+  ).setFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: PNG });
+  await page.getByPlaceholder('Merchant').fill('Future Co');
+  await page.getByPlaceholder('Total (incl. GST)').fill('29.99');
+  await page.getByRole('button', { name: 'Other', exact: true }).click();
+  await page.getByRole('button', { name: 'Date', exact: true }).click();
+  await page.getByRole('button', { name: 'next month' }).click();
+  await page.getByRole('button', { name: '15', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+  await page.getByRole('button', { name: 'Stats' }).click();
+  await expect(page.getByText('Expense (1)')).toBeVisible(); // 全部范围计入
+  await expect(page.getByText('-$29.99').first()).toBeVisible();
+});
+
 test('capture draft survives tab switches and can be discarded', async ({ page }) => {
   await page.getByPlaceholder('Merchant').fill('Draft Cafe');
   const chooserPromise = page.waitForEvent('filechooser');

@@ -103,11 +103,11 @@ export function ReceiptsScreen({ space }: { space: Space }) {
                 </span>
               </span>
               <span className="shrink-0 text-right" style={{ fontFamily: 'var(--font-numeric)' }}>
-                {/* 收入绿色带 +，支出默认色带 −：一眼区分方向 */}
+                {/* 收入绿色带 +，支出红色带 −：一眼区分方向 */}
                 <span
                   className="block text-sm font-bold"
                   style={{
-                    color: kindOf(r) === 'income' ? 'var(--color-accent)' : 'var(--color-ink)',
+                    color: kindOf(r) === 'income' ? 'var(--color-accent)' : 'var(--color-danger)',
                   }}
                 >
                   {kindOf(r) === 'income' ? '+' : '-'}

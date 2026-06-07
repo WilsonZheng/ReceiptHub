@@ -103,7 +103,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
               className="text-2xl font-bold"
               style={{
                 fontFamily: 'var(--font-numeric)',
-                color: kindOf(receipt) === 'income' ? 'var(--color-accent)' : 'var(--color-ink)',
+                color: kindOf(receipt) === 'income' ? 'var(--color-accent)' : 'var(--color-danger)',
               }}
             >
               {kindOf(receipt) === 'income' ? '+' : '-'}

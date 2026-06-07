@@ -78,18 +78,29 @@ export function DashboardScreen({ space }: { space: Space }) {
     return firstMonth(scoped) ?? curYm; // 全部：从最早一张票起
   }, [range, curYm, scoped]);
 
+  // 不设未来上限：票面日期可能晚于今天（预订单/AI 提取的票面日期），静默排除会"丢票"
   const ranged = useMemo(
     () =>
       scoped.filter((r) => {
         const ym = r.date.slice(0, 7);
-        return ym >= rangeFromYm && ym <= curYm;
+        if (range === 'month') return ym === curYm;
+        if (range === 'year') return ym.startsWith(curYm.slice(0, 4));
+        return ym >= rangeFromYm;
       }),
-    [scoped, rangeFromYm, curYm],
+    [scoped, rangeFromYm, range, curYm],
   );
 
+  // 趋势窗口锚到 max(本月, 最新票据月)——未来月的柱子也画出来
+  const latestYm = useMemo(
+    () => scoped.reduce((m, r) => (r.date.slice(0, 7) > m ? r.date.slice(0, 7) : m), curYm),
+    [scoped, curYm],
+  );
   const monthsInRange = monthsBetween(rangeFromYm, curYm);
-  const trendN = Math.min(12, Math.max(monthsInRange, 6)); // 至少 6 根柱给上下文，最多 12
-  const trend = useMemo(() => aggregateByMonth(scoped, trendN, today), [scoped, trendN, today]);
+  const trendN = Math.min(12, Math.max(monthsBetween(rangeFromYm, latestYm), 6));
+  const trend = useMemo(
+    () => aggregateByMonth(scoped, trendN, `${latestYm}-01`),
+    [scoped, trendN, latestYm],
+  );
   const maxBar = Math.max(...trend.map((m) => Math.max(m.expenseCents, m.incomeCents)), 1);
 
   const rangeSummary = useMemo(() => summarize(ranged), [ranged]);
@@ -101,8 +112,18 @@ export function DashboardScreen({ space }: { space: Space }) {
   const focusSummary = useMemo(() => summarize(focus), [focus]);
   const focusExpenses = useMemo(() => focus.filter((r) => kindOf(r) === 'expense'), [focus]);
 
-  const topCats = useMemo(() => topBy(focusExpenses, (r) => r.category, 6), [focusExpenses]);
-  const catTotal = focusSummary.expense.totalCents || 1;
+  const focusIncomes = useMemo(() => focus.filter((r) => kindOf(r) === 'income'), [focus]);
+  const catsByKind = useMemo(
+    () => ({
+      expense: topBy(focusExpenses, (r) => r.category, 6),
+      income: topBy(focusIncomes, (r) => r.category, 6),
+    }),
+    [focusExpenses, focusIncomes],
+  );
+  const kindTotals = {
+    expense: focusSummary.expense.totalCents || 1,
+    income: focusSummary.income.totalCents || 1,
+  };
   const topMerch = useMemo(() => topBy(focusExpenses, (r) => r.merchant, 5), [focusExpenses]);
 
   const netCents = rangeSummary.income.totalCents - rangeSummary.expense.totalCents;
@@ -162,8 +183,11 @@ export function DashboardScreen({ space }: { space: Space }) {
           <span className="text-sm">
             {t('expense')} ({rangeSummary.expense.count})
           </span>
-          <span className="text-2xl font-bold" style={{ fontFamily: 'var(--font-numeric)' }}>
-            {formatNZD(rangeSummary.expense.totalCents)}
+          <span
+            className="text-2xl font-bold"
+            style={{ fontFamily: 'var(--font-numeric)', color: 'var(--color-danger)' }}
+          >
+            -{formatNZD(rangeSummary.expense.totalCents)}
           </span>
         </div>
         <div className="flex items-baseline justify-between">
@@ -241,7 +265,7 @@ export function DashboardScreen({ space }: { space: Space }) {
                     className="w-2.5 rounded-t"
                     style={{
                       height: `${(m.expenseCents / maxBar) * 100}%`,
-                      background: 'var(--color-ink-muted)',
+                      background: 'var(--color-danger)',
                       minHeight: m.expenseCents > 0 ? 2 : 0,
                     }}
                   />
@@ -275,65 +299,87 @@ export function DashboardScreen({ space }: { space: Space }) {
         )}
       </Card>
 
-      {/* 分类排行：占比 % + 点击下钻看商家构成 */}
-      {topCats.length > 0 && (
+      {/* 分类排行：支出/收入双榜，占比 % + 点击下钻看商家构成 */}
+      {(catsByKind.expense.length > 0 || catsByKind.income.length > 0) && (
         <Card title={t('topCategories')}>
-          <ul className="flex flex-col gap-1.5">
-            {topCats.map(([c, cents]) => {
-              const pct = Math.round((cents / catTotal) * 100);
-              const expanded = expandedCat === c;
-              const catMerchants = expanded
-                ? topBy(
-                    focusExpenses.filter((r) => r.category === c),
-                    (r) => r.merchant,
-                    4,
-                  )
-                : [];
-              return (
-                <li key={c} className="text-xs">
-                  <button
-                    onClick={() => setExpandedCat(expanded ? null : c)}
-                    className="w-full text-left"
-                  >
-                    <div className="flex justify-between">
-                      <span>
-                        {categoryLabel(c, locale)}{' '}
-                        <span style={{ color: 'var(--color-ink-muted)' }}>{pct}%</span>
-                      </span>
-                      <span style={{ fontFamily: 'var(--font-numeric)' }}>{formatNZD(cents)}</span>
-                    </div>
-                    <div
-                      className="mt-0.5 h-1.5 rounded-full"
-                      style={{ background: 'var(--color-surface-2)' }}
-                    >
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${pct}%`,
-                          background: 'var(--color-accent)',
-                          transition: 'width .3s cubic-bezier(.32,.72,0,1)',
-                        }}
-                      />
-                    </div>
-                  </button>
-                  {expanded && (
-                    <ul className="screen-in mt-1 flex flex-col gap-0.5 pl-3">
-                      {catMerchants.map(([m, mc]) => (
-                        <li
-                          key={m}
-                          className="flex justify-between"
-                          style={{ color: 'var(--color-ink-muted)' }}
+          {(['expense', 'income'] as const).map((k) => {
+            const cats = catsByKind[k];
+            if (cats.length === 0) return null;
+            const color = k === 'expense' ? 'var(--color-danger)' : 'var(--color-accent)';
+            const source = k === 'expense' ? focusExpenses : focusIncomes;
+            return (
+              <div key={k} className="mb-2 last:mb-0">
+                <p
+                  className="mb-1 text-[10px] font-semibold"
+                  style={{ color: 'var(--color-ink-muted)' }}
+                >
+                  {t(k)}
+                </p>
+                <ul className="flex flex-col gap-1.5">
+                  {cats.map(([c, cents]) => {
+                    const pct = Math.round((cents / kindTotals[k]) * 100);
+                    const key = `${k}:${c}`;
+                    const expanded = expandedCat === key;
+                    const catMerchants = expanded
+                      ? topBy(
+                          source.filter((r) => r.category === c),
+                          (r) => r.merchant,
+                          4,
+                        )
+                      : [];
+                    return (
+                      <li key={c} className="text-xs">
+                        <button
+                          onClick={() => setExpandedCat(expanded ? null : key)}
+                          className="w-full text-left"
                         >
-                          <span>— {m}</span>
-                          <span style={{ fontFamily: 'var(--font-numeric)' }}>{formatNZD(mc)}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+                          <div className="flex justify-between">
+                            <span>
+                              {categoryLabel(c, locale)}{' '}
+                              <span style={{ color: 'var(--color-ink-muted)' }}>{pct}%</span>
+                            </span>
+                            <span style={{ fontFamily: 'var(--font-numeric)', color }}>
+                              {k === 'expense' ? '-' : '+'}
+                              {formatNZD(cents)}
+                            </span>
+                          </div>
+                          <div
+                            className="mt-0.5 h-1.5 rounded-full"
+                            style={{ background: 'var(--color-surface-2)' }}
+                          >
+                            <div
+                              className="h-full rounded-full"
+                              style={{
+                                width: `${pct}%`,
+                                background: color,
+                                transition: 'width .3s cubic-bezier(.32,.72,0,1)',
+                              }}
+                            />
+                          </div>
+                        </button>
+                        {expanded && (
+                          <ul className="screen-in mt-1 flex flex-col gap-0.5 pl-3">
+                            {catMerchants.map(([m, mc]) => (
+                              <li
+                                key={m}
+                                className="flex justify-between"
+                                style={{ color: 'var(--color-ink-muted)' }}
+                              >
+                                <span>— {m}</span>
+                                <span style={{ fontFamily: 'var(--font-numeric)' }}>
+                                  {formatNZD(mc)}
+                                </span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
         </Card>
       )}
 
