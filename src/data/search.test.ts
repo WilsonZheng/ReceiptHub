@@ -34,6 +34,17 @@ describe('searchReceipts', () => {
     const idx2 = buildIndex([rec('5', { merchant: 'Shop', items: ['Pine Timber ×6', 'Screws'] })]);
     expect(searchReceipts(idx2, 'timber')).toContain('5');
   });
+  it('matches chinese category label regardless of stored english name', () => {
+    expect(searchReceipts(idx, '油费')).toContain('2'); // Fuel 的中文名
+  });
+  it('matches date', () => {
+    const idx2 = buildIndex([rec('6', { merchant: 'Xmas Shop', date: '2025-12-25' })]);
+    expect(searchReceipts(idx2, '2025')).toContain('6');
+  });
+  it('matches gst amount', () => {
+    const idx2 = buildIndex([rec('7', { merchant: 'G', totalCents: 11500, gstCents: 1500 })]);
+    expect(searchReceipts(idx2, '15.00')).toContain('7');
+  });
   it('excludes tombstones from index', () => {
     const idx2 = buildIndex([...docs, rec('4', { merchant: 'Deleted Shop', deleted: true })]);
     expect(searchReceipts(idx2, 'deleted shop')).not.toContain('4');
