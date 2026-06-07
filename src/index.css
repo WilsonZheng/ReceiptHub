@@ -9,11 +9,23 @@ html[data-theme='light'] {
   color-scheme: light;
 }
 
+/* 锁死文档级滚动：只有 <main> 内部可滚，页面整体永远无法被拖偏 */
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior-y: none; /* 防止 iOS 橡皮筋拉出白底 */
+}
+
 body {
   background: var(--color-bg);
   color: var(--color-ink);
   font-family: var(--font-display);
-  overscroll-behavior-y: none; /* 防止 iOS 橡皮筋拉出白底 */
+}
+
+/* 应用高度：JS 注入的精确像素值（修 iOS standalone 启动时 dvh 算错的 bug），dvh 兜底 */
+.h-app {
+  height: var(--app-h, 100dvh);
 }
 
 /* 消除 iOS 双击缩放延迟和点击高亮闪烁 */

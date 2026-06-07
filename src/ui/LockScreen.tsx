@@ -15,7 +15,7 @@ export function LockScreen({ onUnlock }: { onUnlock: () => void }) {
 
   return (
     <div
-      className="mx-auto flex h-dvh max-w-sm flex-col items-center justify-center gap-4 px-8"
+      className="h-app mx-auto flex max-w-sm flex-col items-center justify-center gap-4 px-8"
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
       <h1 className="text-2xl font-bold">ReceiptHub</h1>
