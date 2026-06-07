@@ -1,12 +1,11 @@
 import { DEFAULT_CONFIG, type AppConfig } from '../data/types';
+import { getSessionPat } from './vault';
 
-const PAT_KEY = 'rh.pat';
 const CONFIG_KEY = 'rh.config';
 export const DATA_REPO = 'WilsonZheng/ReceiptHub-data';
 
-export const getPat = (): string | null => localStorage.getItem(PAT_KEY);
-export const setPat = (pat: string): void => localStorage.setItem(PAT_KEY, pat.trim());
-export const clearPat = (): void => localStorage.removeItem(PAT_KEY);
+/** 当前会话的 PAT（由 vault 解锁后注入 sessionStorage） */
+export const getPat = (): string | null => getSessionPat();
 
 export function getConfig(): AppConfig {
   const raw = localStorage.getItem(CONFIG_KEY);
