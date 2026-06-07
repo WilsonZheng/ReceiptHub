@@ -172,6 +172,29 @@ test('income entry: own categories, + in list, gst nets off in export', async ({
   expect(csv).toContain(',Expense,Office Rent,Other,100.00,15.00,115.00,');
 });
 
+test('dashboard shows monthly summary, trend, top lists and gst card', async ({ page }) => {
+  await addReceipt(page, 'Mitre 10', '46.00', 'Equipment'); // 支出 GST 6.00
+  await page.getByRole('button', { name: 'Stats' }).click();
+  await expect(page.getByText('Top categories (this month)')).toBeVisible();
+  await expect(page.getByText('Last 6 months')).toBeVisible();
+  await expect(page.getByText('Mitre 10')).toBeVisible(); // 商家排行
+  await expect(page.getByText('GST · last 2 months')).toBeVisible();
+  await expect(page.getByText(/Net GST/)).toBeVisible();
+});
+
+test('capture thumbnail opens fullscreen preview', async ({ page }) => {
+  const chooserPromise = page.waitForEvent('filechooser');
+  await page.getByText('Upload from library').click();
+  await (
+    await chooserPromise
+  ).setFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: PNG });
+  await page.locator('[role="button"].h-16').click(); // 点缩略图
+  const overlay = page.locator('.fixed.inset-0.z-50');
+  await expect(overlay).toBeVisible();
+  await overlay.click(); // 点任意处关闭
+  await expect(overlay).not.toBeVisible();
+});
+
 test('space toggle separates company and personal', async ({ page }) => {
   await addReceipt(page, 'Company Store', '100.00', 'Other');
   // 切到 personal

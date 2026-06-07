@@ -28,6 +28,18 @@ body {
   height: var(--app-h, 100dvh);
 }
 
+/* 次级按钮：链接样文字在移动端太突兀，统一用它（components 层，可被工具类覆盖） */
+@layer components {
+  .btn-secondary {
+    background: var(--color-surface-2);
+    color: var(--color-ink);
+    border-radius: 10px;
+    padding: 0.5rem 0.875rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+  }
+}
+
 /* 消除 iOS 双击缩放延迟和点击高亮闪烁 */
 button,
 input,

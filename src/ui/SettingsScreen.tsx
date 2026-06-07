@@ -113,23 +113,21 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
         <h3 className="font-bold">{t('sync')}</h3>
         <p style={{ color: 'var(--color-ink-muted)' }}>
           {t(`status_${status}`)} · {pending} {t('pendingUnit')} · {counts.receipts}{' '}
-          {t('receiptsUnit')} · {counts.photos} {t('photosUnit')} ·{' '}
+          {t('receiptsUnit')} · {counts.photos} {t('photosUnit')}
+        </p>
+        <div className="mt-2 flex gap-2">
+          <button onClick={() => void syncNow()} className="btn-secondary">
+            {t('syncNow')}
+          </button>
           <a
-            className="underline"
+            className="btn-secondary inline-block"
             href={`https://github.com/${DATA_REPO}`}
             target="_blank"
             rel="noreferrer"
           >
-            {t('dataRepo')}
+            {t('dataRepo')} ↗
           </a>
-        </p>
-        <button
-          onClick={() => void syncNow()}
-          className="mt-2 rounded-lg px-3 py-1.5"
-          style={{ background: 'var(--color-surface-2)' }}
-        >
-          {t('syncNow')}
-        </button>
+        </div>
       </section>
 
       <section className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>

@@ -59,7 +59,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
 
   return (
     <div className="flex flex-col gap-3 py-2">
-      <button onClick={onClose} className="self-start text-sm underline">
+      <button onClick={onClose} className="btn-secondary self-start">
         {t('back')}
       </button>
       {photos.map((p) => (

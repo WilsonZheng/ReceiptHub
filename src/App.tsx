@@ -7,6 +7,7 @@ import { useT } from './lib/i18n';
 import { LockScreen } from './ui/LockScreen';
 import { CaptureScreen } from './ui/CaptureScreen';
 import { ReceiptsScreen } from './ui/ReceiptsScreen';
+import { DashboardScreen } from './ui/DashboardScreen';
 import { ExportScreen } from './ui/ExportScreen';
 import { SettingsScreen } from './ui/SettingsScreen';
 import { SpaceToggle } from './ui/components/SpaceToggle';
@@ -84,6 +85,7 @@ export default function App() {
       <main className="flex-1 overflow-y-auto px-4 pb-2">
         {tab === 'capture' && <CaptureScreen space={space} onSaved={() => setTab('receipts')} />}
         {tab === 'receipts' && <ReceiptsScreen space={space} />}
+        {tab === 'stats' && <DashboardScreen space={space} />}
         {tab === 'export' && <ExportScreen space={space} />}
         {tab === 'settings' && <SettingsScreen onPatCleared={() => setUnlocked(false)} />}
       </main>

@@ -1,10 +1,11 @@
 import { useT, type MsgKey } from '../../lib/i18n';
 
-export type Tab = 'capture' | 'receipts' | 'export' | 'settings';
+export type Tab = 'capture' | 'receipts' | 'stats' | 'export' | 'settings';
 
 const TABS: { id: Tab; labelKey: MsgKey; icon: string }[] = [
   { id: 'capture', labelKey: 'tabCapture', icon: '📷' },
   { id: 'receipts', labelKey: 'tabReceipts', icon: '📋' },
+  { id: 'stats', labelKey: 'tabStats', icon: '📊' },
   { id: 'export', labelKey: 'tabExport', icon: '📤' },
   { id: 'settings', labelKey: 'tabSettings', icon: '⚙️' },
 ];
@@ -20,7 +21,7 @@ export function TabBar({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void
         <button
           key={item.id}
           onClick={() => onChange(item.id)}
-          className="flex min-h-11 flex-col items-center px-4 py-1.5 text-[10px]"
+          className="flex min-h-11 flex-col items-center px-2 py-1.5 text-[10px]"
           style={{ opacity: tab === item.id ? 1 : 0.4 }}
           aria-current={tab === item.id}
         >

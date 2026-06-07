@@ -23,6 +23,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
   const [merchants, setMerchants] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState<ProcessedFile | null>(null);
   const t = useT();
 
   useEffect(() => {
@@ -132,11 +133,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       >
         {t('takePhoto')}
       </button>
-      <button
-        onClick={() => libraryRef.current?.click()}
-        className="text-sm underline"
-        style={{ color: 'var(--color-ink-muted)' }}
-      >
+      <button onClick={() => libraryRef.current?.click()} className="btn-secondary w-full">
         {t('uploadLabel')}
         <span className="hidden sm:inline">{t('uploadDesktopHint')}</span>
       </button>
@@ -163,7 +160,12 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
           {files.map((f, i) => (
             <div
               key={i}
-              className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg"
+              role="button"
+              tabIndex={0}
+              onClick={() =>
+                f.kind === 'pdf' ? window.open(URL.createObjectURL(f.full)) : setPreview(f)
+              }
+              className="relative h-16 w-16 shrink-0 cursor-pointer overflow-hidden rounded-lg"
               style={{ background: 'var(--color-surface-2)' }}
             >
               {f.kind === 'pdf' ? (
@@ -176,14 +178,33 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
                 />
               )}
               <button
-                onClick={() => setFiles(files.filter((_, j) => j !== i))}
-                className="absolute right-0 top-0 px-1 text-xs"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFiles(files.filter((_, j) => j !== i));
+                }}
+                className="absolute right-0 top-0 rounded-bl-lg px-1.5 py-0.5 text-xs"
+                style={{ background: 'rgba(0,0,0,.55)', color: '#fff' }}
                 aria-label={t('removeFile')}
               >
                 ✕
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* 点缩略图全屏预览，点任意处关闭 */}
+      {preview && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,.88)' }}
+          onClick={() => setPreview(null)}
+        >
+          <img
+            src={URL.createObjectURL(preview.full)}
+            className="max-h-full max-w-full rounded-lg object-contain"
+            alt=""
+          />
         </div>
       )}
       {error && (
