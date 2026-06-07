@@ -2,7 +2,7 @@
 
 日期：2026-06-07
 作者：Wilson Zheng（与 Claude 协作设计）
-状态：待用户最终评审
+状态：✅ 已实现并上线（含 Phase 2 AI 提取）。后续演进以 `CLAUDE.md` 与 git history 为准；本文件保留为初始设计存档。
 
 ## 1. 目标
 
