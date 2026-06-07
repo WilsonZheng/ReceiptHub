@@ -1,7 +1,16 @@
 import { useEffect, useState } from 'react';
 import { liveQuery } from 'dexie';
 import { db } from '../data/db';
-import { clearPat, getAiKey, getConfig, setAiKey, setConfig, DATA_REPO } from '../lib/settings';
+import {
+  addCategoryToConfig,
+  clearPat,
+  getAiKey,
+  getConfig,
+  setAiKey,
+  setConfig,
+  DATA_REPO,
+} from '../lib/settings';
+import { AddChip } from './components/AddChip';
 import { setLocale, useLocale, useT, type Locale } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
 import { setTheme, useTheme, type Theme } from '../lib/theme';
@@ -21,59 +30,6 @@ function Pill({ active, label, onClick }: { active: boolean; label: string; onCl
     >
       {label}
     </button>
-  );
-}
-
-/** 组尾的"＋"占位 chip：点击就地变输入框，Enter/失焦提交，Esc 取消 */
-function AddChip({ onAdd }: { onAdd: (name: string) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState('');
-  const t = useT();
-
-  function commit() {
-    const name = value.trim();
-    if (name) onAdd(name);
-    setValue('');
-    setEditing(false);
-  }
-
-  if (!editing) {
-    return (
-      <button
-        onClick={() => setEditing(true)}
-        className="rounded-full border border-dashed px-2.5 py-1 text-xs"
-        style={{
-          borderColor: 'var(--color-ink-muted)',
-          color: 'var(--color-ink-muted)',
-          background: 'transparent',
-        }}
-      >
-        ＋ {t('add')}
-      </button>
-    );
-  }
-  return (
-    <input
-      autoFocus
-      value={value}
-      onChange={(e) => setValue(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') commit();
-        if (e.key === 'Escape') {
-          setValue('');
-          setEditing(false);
-        }
-      }}
-      placeholder={t('newCategory')}
-      className="w-32 rounded-full px-2.5 py-1 text-xs"
-      style={{
-        background: 'var(--color-surface-2)',
-        border: '1px solid var(--color-accent)',
-        outline: 'none',
-        color: 'var(--color-ink)',
-      }}
-    />
   );
 }
 
@@ -100,18 +56,7 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
   }, []);
 
   function addCategory(space: Space, kind: Kind, name: string) {
-    if (config.categories[space][kind].includes(name)) return; // 去重
-    const next: AppConfig = {
-      categories: {
-        ...config.categories,
-        [space]: {
-          ...config.categories[space],
-          [kind]: [...config.categories[space][kind], name],
-        },
-      },
-    };
-    setConfig(next);
-    setLocalConfig(next);
+    setLocalConfig(addCategoryToConfig(space, kind, name));
   }
   function removeCategory(space: Space, kind: Kind, cat: string) {
     const next: AppConfig = {

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { db, type PhotoRow } from '../data/db';
 import { softDeleteReceipt, updateReceipt } from '../data/repo';
 import { formatNZD, gstFromTotalCents, parseNZD } from '../lib/money';
-import { getConfig } from '../lib/settings';
+import { addCategoryToConfig, canonicalCategory, getConfig } from '../lib/settings';
+import { AddChip } from './components/AddChip';
 import { useLocale, useT } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
 import { formatDate } from '../lib/dates';
@@ -196,6 +197,13 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
                 {categoryLabel(c, locale)}
               </button>
             ))}
+            <AddChip
+              onAdd={(name) => {
+                if (!receipt) return;
+                const next = addCategoryToConfig(receipt.space, kind, name);
+                setCategory(canonicalCategory(next, receipt.space, kind, name));
+              }}
+            />
           </div>
           <textarea
             value={itemsText}

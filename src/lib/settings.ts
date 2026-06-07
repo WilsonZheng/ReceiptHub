@@ -1,4 +1,4 @@
-import { DEFAULT_CONFIG, type AppConfig, type Space } from '../data/types';
+import { DEFAULT_CONFIG, type AppConfig, type Kind, type Space } from '../data/types';
 
 const PAT_KEY = 'rh.pat';
 const CONFIG_KEY = 'rh.config';
@@ -44,4 +44,28 @@ export function getConfig(): AppConfig {
 }
 export function setConfig(c: AppConfig): void {
   localStorage.setItem(CONFIG_KEY, JSON.stringify(c));
+}
+
+/** 向指定空间/收支类型追加分类（大小写不敏感去重），返回最新配置 */
+export function addCategoryToConfig(space: Space, kind: Kind, name: string): AppConfig {
+  const cfg = getConfig();
+  const list = cfg.categories[space][kind];
+  const trimmed = name.trim();
+  if (!trimmed || list.some((c) => c.toLowerCase() === trimmed.toLowerCase())) return cfg;
+  const next: AppConfig = {
+    categories: {
+      ...cfg.categories,
+      [space]: { ...cfg.categories[space], [kind]: [...list, trimmed] },
+    },
+  };
+  setConfig(next);
+  return next;
+}
+
+/** 找到与 name 大小写等价的现有规范名（用于添加后选中） */
+export function canonicalCategory(cfg: AppConfig, space: Space, kind: Kind, name: string): string {
+  return (
+    cfg.categories[space][kind].find((c) => c.toLowerCase() === name.trim().toLowerCase()) ??
+    name.trim()
+  );
 }

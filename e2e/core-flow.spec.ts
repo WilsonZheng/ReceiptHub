@@ -273,7 +273,7 @@ test('ai extract: upload → button → form filled → save', async ({ page }) 
                     date: '2026-06-03',
                     total: 57.8,
                     kind: 'expense',
-                    category: 'Other',
+                    category: 'Pet Supplies', // 不在默认分类表中 → 应被自动添加并选中
                     items: ['Milk 2L ×2', 'Bread'],
                     note: 'EFTPOS',
                   }),
@@ -302,6 +302,8 @@ test('ai extract: upload → button → form filled → save', async ({ page }) 
     'Milk 2L ×2\nBread',
   );
   await expect(page.getByPlaceholder('Note (optional)')).toHaveValue('EFTPOS');
+  // AI 提名的新分类被自动加入并选中
+  await expect(page.getByRole('button', { name: 'Pet Supplies', exact: true })).toBeVisible();
   await expect(page.getByText('GST $7.54')).toBeVisible(); // 57.80 × 3/23
   // 直接保存即可入库
   await page.getByRole('button', { name: 'Save', exact: true }).click();
@@ -339,6 +341,12 @@ test('inline category add: tap + chip, type, enter — usable in capture', async
   await expect(page.getByText('Insurance')).toBeVisible(); // chip 即时出现
   await page.getByRole('button', { name: 'Capture' }).click();
   await expect(page.getByRole('button', { name: 'Insurance', exact: true })).toBeVisible();
+
+  // 拍照页同样可就地添加并自动选中
+  await page.getByRole('button', { name: '＋ Add' }).click();
+  await page.getByPlaceholder('New category').fill('Gardening');
+  await page.getByPlaceholder('New category').press('Enter');
+  await expect(page.getByRole('button', { name: 'Gardening', exact: true })).toBeVisible();
 });
 
 test('space toggle separates company and personal', async ({ page }) => {

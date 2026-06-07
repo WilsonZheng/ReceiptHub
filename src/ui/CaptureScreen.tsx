@@ -4,7 +4,8 @@ import { clearDraft, emptyDraft, getDraft, isDraftDirty, setDraft } from '../lib
 import { localToday } from '../lib/dates';
 import { formatNZD, gstFromTotalCents, parseNZD } from '../lib/money';
 import { extractReceipt, ExtractError } from '../lib/extract';
-import { getAiKey, getConfig } from '../lib/settings';
+import { addCategoryToConfig, canonicalCategory, getAiKey, getConfig } from '../lib/settings';
+import { AddChip } from './components/AddChip';
 import { useLocale, useT } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
 import { saveReceipt } from '../data/repo';
@@ -164,7 +165,15 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       if (r.items?.length) setItems(r.items.join('\n'));
       if (r.note) setNote(r.note);
       // setKind 的 effect 会清空 category，这里用 setTimeout 排到其后
-      if (r.category) setTimeout(() => setCategory(r.category!), 0);
+      if (r.category) {
+        setTimeout(() => setCategory(r.category!), 0);
+      } else if (r.newCategory) {
+        // AI 提名的新分类：自动加入该空间该收支类型并选中
+        const k = r.kind ?? kind;
+        const next = addCategoryToConfig(space, k, r.newCategory);
+        const canonical = canonicalCategory(next, space, k, r.newCategory);
+        setTimeout(() => setCategory(canonical), 0);
+      }
     } catch (e) {
       if (e instanceof ExtractError && e.reason === 'auth') setError(t('aiErrAuth'));
       else if (e instanceof ExtractError && e.reason === 'rate_limit') setError(t('aiErrRate'));
@@ -364,6 +373,12 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
             {categoryLabel(c, locale)}
           </button>
         ))}
+        <AddChip
+          onAdd={(name) => {
+            const next = addCategoryToConfig(space, kind, name);
+            setCategory(canonicalCategory(next, space, kind, name));
+          }}
+        />
       </div>
 
       <textarea

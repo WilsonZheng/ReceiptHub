@@ -22,7 +22,8 @@ export interface Extraction {
   date?: string; // YYYY-MM-DD
   totalCents?: number;
   kind?: Kind;
-  category?: string;
+  category?: string; // 命中现有分类（规范名）
+  newCategory?: string; // 现有分类都不合适时，AI 提名的新分类（待加入）
   items?: string[];
   note?: string;
 }
@@ -55,7 +56,7 @@ function buildPrompt(categories: Record<Kind, string[]>, locale: Locale): string
     '- date: the transaction/invoice date as YYYY-MM-DD.',
     '- total: the final total amount including GST, in dollars.',
     "- kind: 'expense' for receipts/bills the user paid; 'income' only if this is clearly an invoice the user issued to a client. Default 'expense'.",
-    `- category: pick the single best match. For expense choose from: ${categories.expense.join(', ')}. For income choose from: ${categories.income.join(', ')}.`,
+    `- category: strongly prefer the best match from the existing list. For expense: ${categories.expense.join(', ')}. For income: ${categories.income.join(', ')}. ONLY if none reasonably fits, output a NEW concise category name (1-3 English words, Title Case).`,
     '- items: the main line items/services as a list, each entry like "Name ×qty" (keep original product names, max 10 entries; merge trivial ones).',
     `- note: other useful info in ${noteLang}: invoice number if present, payment method if visible. Max 80 characters. Separate parts with " · ". Do NOT repeat the items here.`,
     'If multiple attachments are provided, they are photos/pages of the SAME single receipt or invoice — combine them into one record.',
@@ -130,8 +131,12 @@ export async function extractReceipt(
     out.totalCents = Math.round(raw.total * 100);
   }
   if (raw.kind === 'income' || raw.kind === 'expense') out.kind = raw.kind;
-  if (raw.category && opts.categories[kind].includes(raw.category)) {
-    out.category = raw.category;
+  if (raw.category?.trim()) {
+    const name = raw.category.trim();
+    // 大小写不敏感归并到现有规范名；否则作为新分类提名（限长防 AI 胡编）
+    const hit = opts.categories[kind].find((c) => c.toLowerCase() === name.toLowerCase());
+    if (hit) out.category = hit;
+    else if (name.length <= 30) out.newCategory = name;
   }
   if (Array.isArray(raw.items)) {
     const items = raw.items

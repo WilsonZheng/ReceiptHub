@@ -73,14 +73,29 @@ describe('extractReceipt', () => {
     expect(JSON.stringify(body)).toContain('Fuel'); // 分类列表进了提示词
   });
 
-  it('drops category not in the allowed list and invalid date', async () => {
+  it('unknown category becomes a proposal (newCategory), invalid date dropped', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      geminiReply({ merchant: 'X', date: 'last tuesday', total: 10, category: 'Made Up' }),
+      geminiReply({ merchant: 'X', date: 'last tuesday', total: 10, category: 'Pet Supplies' }),
     );
     const r = await extractReceipt([file], OPTS);
     expect(r.category).toBeUndefined();
+    expect(r.newCategory).toBe('Pet Supplies');
     expect(r.date).toBeUndefined();
     expect(r.totalCents).toBe(1000);
+  });
+
+  it('case-insensitive match maps to canonical existing category', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(geminiReply({ category: 'fuel' }));
+    const r = await extractReceipt([file], OPTS);
+    expect(r.category).toBe('Fuel');
+    expect(r.newCategory).toBeUndefined();
+  });
+
+  it('absurd category proposals are dropped', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(geminiReply({ category: 'x'.repeat(80) }));
+    const r = await extractReceipt([file], OPTS);
+    expect(r.category).toBeUndefined();
+    expect(r.newCategory).toBeUndefined();
   });
 
   it('income kind validates category against income list', async () => {
