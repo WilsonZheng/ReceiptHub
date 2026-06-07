@@ -211,6 +211,13 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         {t('uploadLabel')}
         <span className="hidden sm:inline">{t('uploadDesktopHint')}</span>
       </button>
+      {/* iOS 的「浏览」即系统 Files：Google Drive/Dropbox 等都是其官方接入方 */}
+      <p
+        className="-mt-1 text-center text-[10px] sm:hidden"
+        style={{ color: 'var(--color-ink-muted)' }}
+      >
+        {t('driveHint')}
+      </p>
 
       <div className="flex gap-2">
         {(['expense', 'income'] as const).map((k) => (
