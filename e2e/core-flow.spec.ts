@@ -104,6 +104,10 @@ test('detail edit and soft delete', async ({ page }) => {
   await page.getByText('Z Energy Penrose').click();
   await page.getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByText('No receipts yet')).toBeVisible();
+
+  // 删除后设置页计数应为 0（墓碑不计入）
+  await openMore(page, 'Settings');
+  await expect(page.getByText(/0 receipts · 0 photos/)).toBeVisible();
 });
 
 test('offline capture queues, sync drains outbox when online', async ({ page, context }) => {
@@ -199,6 +203,16 @@ test('capture thumbnail opens fullscreen preview', async ({ page }) => {
   await expect(overlay).toBeVisible();
   await overlay.click(); // 点任意处关闭
   await expect(overlay).not.toBeVisible();
+});
+
+test('inline category add: tap + chip, type, enter — usable in capture', async ({ page }) => {
+  await openMore(page, 'Settings');
+  await page.getByRole('button', { name: '＋ Add' }).first().click(); // 公司·支出 组
+  await page.getByPlaceholder('New category').fill('Insurance');
+  await page.getByPlaceholder('New category').press('Enter');
+  await expect(page.getByText('Insurance')).toBeVisible(); // chip 即时出现
+  await page.getByRole('button', { name: 'Capture' }).click();
+  await expect(page.getByRole('button', { name: 'Insurance', exact: true })).toBeVisible();
 });
 
 test('space toggle separates company and personal', async ({ page }) => {

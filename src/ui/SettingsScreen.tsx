@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { liveQuery } from 'dexie';
 import { db } from '../data/db';
 import { clearPat, getConfig, setConfig, DATA_REPO } from '../lib/settings';
 import { setLocale, useLocale, useT, type Locale } from '../lib/i18n';
@@ -23,37 +24,91 @@ function Pill({ active, label, onClick }: { active: boolean; label: string; onCl
   );
 }
 
+/** 组尾的"＋"占位 chip：点击就地变输入框，Enter/失焦提交，Esc 取消 */
+function AddChip({ onAdd }: { onAdd: (name: string) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState('');
+  const t = useT();
+
+  function commit() {
+    const name = value.trim();
+    if (name) onAdd(name);
+    setValue('');
+    setEditing(false);
+  }
+
+  if (!editing) {
+    return (
+      <button
+        onClick={() => setEditing(true)}
+        className="rounded-full border border-dashed px-2.5 py-1 text-xs"
+        style={{
+          borderColor: 'var(--color-ink-muted)',
+          color: 'var(--color-ink-muted)',
+          background: 'transparent',
+        }}
+      >
+        ＋ {t('add')}
+      </button>
+    );
+  }
+  return (
+    <input
+      autoFocus
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') commit();
+        if (e.key === 'Escape') {
+          setValue('');
+          setEditing(false);
+        }
+      }}
+      placeholder={t('newCategory')}
+      className="w-32 rounded-full px-2.5 py-1 text-xs"
+      style={{
+        background: 'var(--color-surface-2)',
+        border: '1px solid var(--color-accent)',
+        outline: 'none',
+        color: 'var(--color-ink)',
+      }}
+    />
+  );
+}
+
 export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
   const { status, pending } = useSyncStatus();
   const [counts, setCounts] = useState({ receipts: 0, photos: 0 });
   const [config, setLocalConfig] = useState(getConfig());
-  const [newCat, setNewCat] = useState('');
-  const [catSpace, setCatSpace] = useState<Space>('company');
-  const [catKind, setCatKind] = useState<Kind>('expense');
   const locale = useLocale();
   const theme = useTheme();
   const t = useT();
 
   useEffect(() => {
-    void Promise.all([db.receipts.count(), db.photos.count()]).then(([receipts, photos]) =>
-      setCounts({ receipts, photos }),
-    );
+    // 软删除的墓碑记录不计入统计；liveQuery 让删除后立刻刷新
+    const sub = liveQuery(async () => {
+      const alive = await db.receipts.filter((r) => !r.deleted).toArray();
+      const ids = new Set(alive.map((r) => r.id));
+      const photos = await db.photos.filter((p) => ids.has(p.receiptId)).count();
+      return { receipts: alive.length, photos };
+    }).subscribe({ next: setCounts });
+    return () => sub.unsubscribe();
   }, []);
 
-  function addCategory() {
-    if (!newCat.trim()) return;
+  function addCategory(space: Space, kind: Kind, name: string) {
+    if (config.categories[space][kind].includes(name)) return; // 去重
     const next: AppConfig = {
       categories: {
         ...config.categories,
-        [catSpace]: {
-          ...config.categories[catSpace],
-          [catKind]: [...config.categories[catSpace][catKind], newCat.trim()],
+        [space]: {
+          ...config.categories[space],
+          [kind]: [...config.categories[space][kind], name],
         },
       },
     };
     setConfig(next);
     setLocalConfig(next);
-    setNewCat('');
   }
   function removeCategory(space: Space, kind: Kind, cat: string) {
     const next: AppConfig = {
@@ -131,68 +186,39 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
         </div>
       </section>
 
-      <section className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
-        <h3 className="font-bold">{t('categories')}</h3>
-        {(['company', 'personal'] as const).map((sp) => (
-          <div key={sp} className="mt-2">
-            <p className="text-xs font-semibold" style={{ color: 'var(--color-ink-muted)' }}>
-              {t(sp)}
-            </p>
-            {(['expense', 'income'] as const).map((k) => (
-              <div key={k} className="mt-1">
-                <p className="text-[10px]" style={{ color: 'var(--color-ink-muted)' }}>
-                  {t(k)}
-                </p>
-                <div className="mt-0.5 flex flex-wrap gap-1.5">
-                  {config.categories[sp][k].map((c) => (
-                    <span
-                      key={c}
-                      className="rounded-full px-2.5 py-1 text-xs"
-                      style={{ background: 'var(--color-surface-2)' }}
-                    >
-                      {categoryLabel(c, locale)}{' '}
-                      <button onClick={() => removeCategory(sp, k, c)} aria-label={`Remove ${c}`}>
-                        ✕
-                      </button>
-                    </span>
-                  ))}
-                </div>
+      {/* 分类管理：公司 / 个人 各自独立卡片，组尾 ＋ 就地添加 */}
+      {(['company', 'personal'] as const).map((sp) => (
+        <section key={sp} className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
+          <h3 className="font-bold">
+            {t('categories')} · {t(sp)}
+          </h3>
+          {(['expense', 'income'] as const).map((k) => (
+            <div key={k} className="mt-2.5">
+              <p
+                className="text-[10px] font-semibold tracking-wide"
+                style={{ color: 'var(--color-ink-muted)' }}
+              >
+                {t(k)}
+              </p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {config.categories[sp][k].map((c) => (
+                  <span
+                    key={c}
+                    className="rounded-full px-2.5 py-1 text-xs"
+                    style={{ background: 'var(--color-surface-2)' }}
+                  >
+                    {categoryLabel(c, locale)}{' '}
+                    <button onClick={() => removeCategory(sp, k, c)} aria-label={`Remove ${c}`}>
+                      ✕
+                    </button>
+                  </span>
+                ))}
+                <AddChip onAdd={(name) => addCategory(sp, k, name)} />
               </div>
-            ))}
-          </div>
-        ))}
-        <div className="mt-2 flex gap-2">
-          <select
-            value={catSpace}
-            onChange={(e) => setCatSpace(e.target.value as Space)}
-            className="field w-auto"
-          >
-            <option value="company">{t('company')}</option>
-            <option value="personal">{t('personal')}</option>
-          </select>
-          <select
-            value={catKind}
-            onChange={(e) => setCatKind(e.target.value as Kind)}
-            className="field w-auto"
-          >
-            <option value="expense">{t('expense')}</option>
-            <option value="income">{t('income')}</option>
-          </select>
-          <input
-            value={newCat}
-            onChange={(e) => setNewCat(e.target.value)}
-            placeholder={t('newCategory')}
-            className="field"
-          />
-          <button
-            onClick={addCategory}
-            className="whitespace-nowrap rounded-lg px-3"
-            style={{ background: 'var(--color-surface-2)' }}
-          >
-            {t('add')}
-          </button>
-        </div>
-      </section>
+            </div>
+          ))}
+        </section>
+      ))}
 
       <section className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
         <h3 className="font-bold">{t('access')}</h3>
