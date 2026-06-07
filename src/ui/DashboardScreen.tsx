@@ -184,7 +184,7 @@ export function DashboardScreen({ space }: { space: Space }) {
             {t('expense')} ({rangeSummary.expense.count})
           </span>
           <span
-            className="text-2xl font-bold"
+            className="text-3xl font-black tracking-tighter"
             style={{ fontFamily: 'var(--font-numeric)', color: 'var(--color-danger)' }}
           >
             -{formatNZD(rangeSummary.expense.totalCents)}

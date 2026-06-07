@@ -3,9 +3,9 @@
 import { deflateSync } from 'node:zlib';
 import { writeFileSync, mkdirSync } from 'node:fs';
 
-const BG = [0x0e, 0x11, 0x16]; // tokens: --color-bg
-const PAPER = [0xe8, 0xec, 0xf1]; // --color-ink
-const ACCENT = [0x3d, 0xdc, 0x97]; // --color-accent
+const BG = [0x05, 0x05, 0x05]; // tokens: --color-bg
+const PAPER = [0xff, 0xff, 0xff]; // --color-ink
+const ACCENT = [0x00, 0xff, 0x66]; // --color-accent
 
 function crc32(buf) {
   let c,

@@ -383,7 +383,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       <button
         disabled={!canSave}
         onClick={() => void handleSave()}
-        className="rounded-xl py-3 font-bold disabled:opacity-40"
+        className="btn-glow rounded-xl py-3 font-bold disabled:opacity-40 disabled:shadow-none"
         style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
       >
         {t('save')}

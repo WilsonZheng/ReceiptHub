@@ -18,7 +18,9 @@ export function LockScreen({ onUnlock }: { onUnlock: () => void }) {
       className="app-shell mx-auto flex max-w-sm flex-col items-center justify-center gap-4 px-8"
       style={{ paddingTop: 'env(safe-area-inset-top)' }}
     >
-      <h1 className="text-2xl font-bold">ReceiptHub</h1>
+      <h1 className="text-3xl font-black italic tracking-tighter">
+        ReceiptHub<span style={{ color: 'var(--color-accent)' }}>.</span>
+      </h1>
       <input
         type="password"
         value={value}
@@ -31,7 +33,7 @@ export function LockScreen({ onUnlock }: { onUnlock: () => void }) {
       <button
         disabled={!value.trim()}
         onClick={handleUnlock}
-        className="w-full rounded-lg py-2 font-semibold disabled:opacity-40"
+        className="btn-glow w-full rounded-lg py-2 font-semibold disabled:opacity-40 disabled:shadow-none"
         style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
       >
         {t('unlock')}

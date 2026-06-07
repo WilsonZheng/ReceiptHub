@@ -124,7 +124,9 @@ export default function App() {
         </div>
       )}
       <header className="flex items-center justify-between px-4 py-3">
-        <h1 className="text-lg font-bold">ReceiptHub</h1>
+        <h1 className="text-xl font-black italic tracking-tighter">
+          ReceiptHub<span style={{ color: 'var(--color-accent)' }}>.</span>
+        </h1>
         <div className="flex items-center gap-3">
           <SyncDot />
           <SpaceToggle space={space} onChange={setSpace} />

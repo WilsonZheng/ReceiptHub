@@ -1,16 +1,18 @@
 /* 视觉方向晚绑定点：三个候选方向只改这里的值。
    组件一律引用 token，禁止硬编码颜色。
    当前值 = 方向 B (Midnight Ledger)，作为开发期默认。 */
+/* 暗黑极简科技风（Linear/Vercel 系）：近纯黑底、白字、#888 次级、
+   极光绿单点缀、结构靠 1px 白色微边框而非阴影 */
 @theme {
-  --color-bg: #0e1116;
-  --color-surface: #151a21;
-  --color-surface-2: #1a212b;
-  --color-border: #1f2731;
-  --color-ink: #e8ecf1;
-  --color-ink-muted: #5d6878;
-  --color-accent: #3ddc97;
-  --color-accent-ink: #06070a;
-  --color-danger: #ff6b6b;
+  --color-bg: #050505;
+  --color-surface: #0c0c0c;
+  --color-surface-2: #161616;
+  --color-border: rgba(255, 255, 255, 0.1);
+  --color-ink: #ffffff;
+  --color-ink-muted: #888888;
+  --color-accent: #00ff66;
+  --color-accent-ink: #000000;
+  --color-danger: #ff4d6d;
   --font-display: -apple-system, system-ui, sans-serif;
   --font-numeric: ui-monospace, 'SF Mono', monospace;
   --radius-card: 12px;

@@ -172,13 +172,32 @@ a:active,
   }
 }
 
-/* 消除 iOS 双击缩放延迟和点击高亮闪烁 */
+/* 消除 iOS 双击缩放延迟和点击高亮闪烁；UI 控件禁止长按选中（内容区不禁） */
 button,
 input,
 select,
 a {
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+}
+button,
+nav,
+header {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 主 CTA 霓虹微光（暗黑科技风的唯一"发光"元素） */
+.btn-glow {
+  box-shadow: 0 0 28px color-mix(in srgb, var(--color-accent) 28%, transparent);
+}
+
+/* 毛玻璃 Dock（顶部导航用——底部锚定在 iOS PWA 不可信，见 CLAUDE.md） */
+.glass-dock {
+  background: color-mix(in srgb, var(--color-bg) 72%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid var(--color-border);
 }
 
 .field {

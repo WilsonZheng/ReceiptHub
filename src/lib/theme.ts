@@ -3,7 +3,7 @@ import { useSyncExternalStore } from 'react';
 export type Theme = 'dark' | 'light';
 const STORAGE_KEY = 'rh.theme';
 // iOS 状态栏/浏览器框架颜色跟随主题
-const META_COLORS: Record<Theme, string> = { dark: '#0e1116', light: '#f4f7f6' };
+const META_COLORS: Record<Theme, string> = { dark: '#050505', light: '#f2f2f7' };
 
 function detect(): Theme {
   if (typeof localStorage !== 'undefined') {
