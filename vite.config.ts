@@ -10,7 +10,8 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt', // 应用内横幅提示更新，点击即切换——避免"杀两次进程"才见新版
+
       manifest: {
         name: 'ReceiptHub',
         short_name: 'ReceiptHub',

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useRegisterSW } from 'virtual:pwa-register/react';
 import { getPat } from './lib/settings';
 import type { Space } from './data/types';
 import { onAuthError } from './sync/useSync';
@@ -19,11 +20,37 @@ export default function App() {
   const [authBanner, setAuthBanner] = useState(false);
   const t = useT();
 
+  // 新版本就绪时弹横幅，点击即切换；长会话每小时后台查一次更新
+  const {
+    needRefresh: [needRefresh],
+    updateServiceWorker,
+  } = useRegisterSW({
+    onRegisteredSW(_url, registration) {
+      if (registration) setInterval(() => void registration.update(), 60 * 60 * 1000);
+    },
+  });
+
   useEffect(() => {
     onAuthError(() => setAuthBanner(true));
   }, []);
 
-  if (!unlocked) return <LockScreen onUnlock={() => setUnlocked(true)} />;
+  const updateBanner = needRefresh && (
+    <button
+      onClick={() => void updateServiceWorker(true)}
+      className="w-full px-4 py-2 text-center text-xs font-semibold"
+      style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
+    >
+      {t('updateReady')} → {t('refresh')}
+    </button>
+  );
+
+  if (!unlocked)
+    return (
+      <>
+        {updateBanner}
+        <LockScreen onUnlock={() => setUnlocked(true)} />
+      </>
+    );
 
   return (
     <div
@@ -35,6 +62,7 @@ export default function App() {
         paddingRight: 'env(safe-area-inset-right)',
       }}
     >
+      {updateBanner}
       {authBanner && (
         <div
           className="px-4 py-2 text-center text-xs font-semibold"
