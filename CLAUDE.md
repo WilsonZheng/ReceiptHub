@@ -62,6 +62,7 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 5. PWA 更新：`registerType: 'prompt'` + 应用内横幅一键刷新（autoUpdate 会在用户填表时突然 reload）。另有下拉刷新手势触发 sync + SW update 检查。e2e 里 `serviceWorkers: 'block'` 防更新横幅干扰断言。
 6. iOS 没有系统级下拉刷新（App.tsx 自实现，touch 事件 + 阻尼）；橡皮筋用 `overscroll-behavior` 锁。
 7. Google Drive 上传无需任何代码：iOS 文件选择器的「浏览」= 系统 Files App，Drive/Dropbox 是其官方接入方。不要去接 Google Picker API。
+8. **`backdrop-filter` 双重陷阱**：它让元素变成原子层叠上下文（内部 z-index 出不去，菜单会被后续内容盖住）且成为 `fixed` 后代的包含块（全屏遮罩缩成自身大小）。规则：毛玻璃只放在纯视觉壳上，绝对/固定定位的弹层（菜单、遮罩）必须挂在**无滤镜的外层**（见 TopNav 结构）。
 
 ## AI 提取（Gemini）
 
