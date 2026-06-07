@@ -32,13 +32,10 @@ async function mockGithub(page: Page) {
 }
 
 async function unlock(page: Page) {
-  // 首次使用：setup 模式 — 粘贴 token + 设置密码
+  // "密码"框里粘的实际是 PAT——UI 不暴露这一点
   await page.goto('/');
-  await page.getByPlaceholder('Access token').fill('github_pat_test');
-  await page.getByPlaceholder('Choose a password').fill('test-pass');
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
-  // PBKDF2 加密较慢——必须等解锁完成（vault 落盘）再继续
-  await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible();
+  await page.getByPlaceholder('Password').fill('github_pat_test');
+  await page.getByRole('button', { name: 'Unlock' }).click();
 }
 
 async function addReceipt(page: Page, merchant: string, total: string, category: string) {
@@ -113,20 +110,17 @@ test('offline capture queues, sync drains outbox when online', async ({ page, co
   await expect(page.getByText(/synced · 0 pending/)).toBeVisible({ timeout: 15_000 });
 });
 
-test('password lock: cold start asks password only, wrong rejected, no mechanism leak', async ({
-  page,
-}) => {
-  await page.evaluate(() => sessionStorage.clear()); // 模拟冷启动（session 内明文只活在 sessionStorage）
-  await page.reload();
+test('lock screen shows only a password box and leaks no auth mechanism', async ({ page }) => {
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Clear credentials & lock' }).click();
   await expect(page.getByPlaceholder('Password')).toBeVisible();
-  // 锁屏不得泄露认证机制（GitHub/PAT/数据仓库名）
-  await expect(page.locator('body')).not.toContainText(/github|fine-grained|ReceiptHub-data/i);
-  await page.getByPlaceholder('Password').fill('wrong-pass');
+  // 锁屏不得泄露认证机制（GitHub/PAT/token/数据仓库名）
+  await expect(page.locator('body')).not.toContainText(
+    /github|fine-grained|token|PAT|ReceiptHub-data/i,
+  );
+  await page.getByPlaceholder('Password').fill('github_pat_test');
   await page.getByRole('button', { name: 'Unlock' }).click();
-  await expect(page.getByText('Incorrect password')).toBeVisible();
-  await page.getByPlaceholder('Password').fill('test-pass');
-  await page.getByRole('button', { name: 'Unlock' }).click();
-  await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible(); // 解锁成功
+  await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible(); // 重新解锁成功
 });
 
 test('theme and language switching persists', async ({ page }) => {

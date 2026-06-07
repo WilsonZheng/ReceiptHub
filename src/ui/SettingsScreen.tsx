@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { db } from '../data/db';
-import { getConfig, setConfig, DATA_REPO } from '../lib/settings';
-import { clearVault } from '../lib/vault';
+import { clearPat, getConfig, setConfig, DATA_REPO } from '../lib/settings';
 import { setLocale, useLocale, useT, type Locale } from '../lib/i18n';
 import { setTheme, useTheme, type Theme } from '../lib/theme';
 import { syncNow, useSyncStatus } from '../sync/useSync';
@@ -178,7 +177,7 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
         <h3 className="font-bold">{t('access')}</h3>
         <button
           onClick={() => {
-            clearVault();
+            clearPat();
             onPatCleared();
           }}
           className="mt-2 rounded-lg px-3 py-1.5"
