@@ -6,6 +6,7 @@ import { formatNZD } from '../lib/money';
 import { aggregateByMonth, pctChange, topBy } from '../lib/stats';
 import { useLocale, useT } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
+import { localToday } from '../lib/dates';
 import { kindOf, type Receipt, type Space } from '../data/types';
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
@@ -34,7 +35,7 @@ export function DashboardScreen({ space }: { space: Space }) {
     return () => sub.unsubscribe();
   }, []);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localToday(); // 本地时区——NZ 上午用 UTC 会差一天
   const curMonth = today.slice(0, 7);
   const [cy, cm] = curMonth.split('-').map(Number);
   const prevMonth = new Date(Date.UTC(cy, cm - 2, 1)).toISOString().slice(0, 7);

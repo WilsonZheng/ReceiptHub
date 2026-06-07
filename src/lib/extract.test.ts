@@ -22,7 +22,8 @@ describe('extractReceipt', () => {
         total: 184.5,
         kind: 'expense',
         category: 'Equipment',
-        note: 'Pine timber 2.4m ×6, screws box · inv #INV-1042 · EFTPOS',
+        items: ['Pine timber 2.4m ×6', 'Screws box'],
+        note: 'inv #INV-1042 · EFTPOS',
       }),
     );
     const r = await extractReceipt([file], OPTS);
@@ -32,8 +33,18 @@ describe('extractReceipt', () => {
       totalCents: 18450,
       kind: 'expense',
       category: 'Equipment',
-      note: 'Pine timber 2.4m ×6, screws box · inv #INV-1042 · EFTPOS',
+      items: ['Pine timber 2.4m ×6', 'Screws box'],
+      note: 'inv #INV-1042 · EFTPOS',
     });
+  });
+
+  it('caps items list and drops junk entries', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      geminiReply({ items: ['  ok  ', '', 3, ...Array(20).fill('x')] }),
+    );
+    const r = await extractReceipt([file], OPTS);
+    expect(r.items?.[0]).toBe('ok');
+    expect(r.items?.length).toBeLessThanOrEqual(12);
   });
 
   it('truncates absurdly long notes', async () => {

@@ -18,13 +18,17 @@ const rec = (extra: Partial<Receipt>): Receipt => ({
 });
 
 describe('receiptsToCsv', () => {
-  it('emits header and rows with kind and net = total - gst', () => {
+  it('emits header and rows with kind, items and net = total - gst', () => {
     const csv = receiptsToCsv([rec({})]);
     const [header, row] = csv.trim().split('\n');
     expect(header).toBe(
-      'Date,Kind,Merchant,Category,Net (NZD),GST (NZD),Total (NZD),Note,ReceiptID',
+      'Date,Kind,Merchant,Items,Category,Net (NZD),GST (NZD),Total (NZD),Note,ReceiptID',
     );
-    expect(row).toBe('2026-06-07,Expense,Bunnings,Equipment,160.43,24.07,184.50,,01J');
+    expect(row).toBe('2026-06-07,Expense,Bunnings,,Equipment,160.43,24.07,184.50,,01J');
+  });
+  it('joins items with semicolons', () => {
+    const csv = receiptsToCsv([rec({ items: ['Timber 2.4m ×6', 'Screws box'] })]);
+    expect(csv).toContain(',Timber 2.4m ×6; Screws box,');
   });
   it('legacy records without kind default to Expense; income labelled Income', () => {
     const csv = receiptsToCsv([rec({ kind: undefined }), rec({ id: '01K', kind: 'income' })]);

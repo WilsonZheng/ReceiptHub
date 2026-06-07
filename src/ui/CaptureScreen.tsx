@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { processFile, type ProcessedFile } from '../lib/image';
 import { clearDraft, emptyDraft, getDraft, isDraftDirty, setDraft } from '../lib/draft';
+import { localToday } from '../lib/dates';
 import { formatNZD, gstFromTotalCents, parseNZD } from '../lib/money';
 import { extractReceipt, ExtractError } from '../lib/extract';
 import { getAiKey, getConfig } from '../lib/settings';
@@ -10,8 +11,6 @@ import { saveReceipt } from '../data/repo';
 import { db } from '../data/db';
 import { DateField } from './components/DateField';
 import type { Kind, Space } from '../data/types';
-
-const today = () => new Date().toISOString().slice(0, 10);
 
 export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () => void }) {
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -25,6 +24,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
   const [gstOverride, setGstOverride] = useState<number | null>(d0.gstOverride);
   const [kind, setKind] = useState<Kind>(d0.kind);
   const [category, setCategory] = useState(d0.category);
+  const [items, setItems] = useState(d0.items);
   const [note, setNote] = useState(d0.note);
   const [merchants, setMerchants] = useState<string[]>([]);
   const [error, setError] = useState('');
@@ -55,8 +55,8 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
 
   // 每次变更写回草稿
   useEffect(() => {
-    setDraft({ files, date, merchant, total, kind, category, note, gstOverride });
-  }, [files, date, merchant, total, kind, category, note, gstOverride]);
+    setDraft({ files, date, merchant, total, kind, category, items, note, gstOverride });
+  }, [files, date, merchant, total, kind, category, items, note, gstOverride]);
 
   function discard() {
     clearDraft();
@@ -67,6 +67,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
     setTotal('');
     setKind('expense');
     setCategory('');
+    setItems('');
     setNote('');
     setGstOverride(null);
     setError('');
@@ -118,6 +119,10 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         gstCents: space === 'company' ? gstCents : 0,
         category,
         note,
+        items: items
+          .split('\n')
+          .map((s) => s.trim())
+          .filter(Boolean),
         files,
       });
       clearDraft();
@@ -125,9 +130,10 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       setMerchant('');
       setTotal('');
       setNote('');
+      setItems('');
       setCategory('');
       setGstOverride(null);
-      setDate(today());
+      setDate(localToday());
       onSaved();
     } finally {
       setSaving(false);
@@ -155,6 +161,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         setTotal((r.totalCents / 100).toFixed(2));
         setGstOverride(null);
       }
+      if (r.items?.length) setItems(r.items.join('\n'));
       if (r.note) setNote(r.note);
       // setKind 的 effect 会清空 category，这里用 setTimeout 排到其后
       if (r.category) setTimeout(() => setCategory(r.category!), 0);
@@ -352,11 +359,19 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         ))}
       </div>
 
-      <input
+      <textarea
+        placeholder={t('itemsPlaceholder')}
+        value={items}
+        onChange={(e) => setItems(e.target.value)}
+        rows={Math.min(6, Math.max(2, items.split('\n').length))}
+        className="field resize-none"
+      />
+      <textarea
         placeholder={t('noteOptional')}
         value={note}
         onChange={(e) => setNote(e.target.value)}
-        className="field"
+        rows={Math.min(4, Math.max(1, note.split('\n').length))}
+        className="field resize-none"
       />
       <button
         disabled={!canSave}
@@ -366,7 +381,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       >
         {t('save')}
       </button>
-      {isDraftDirty({ files, date, merchant, total, kind, category, note, gstOverride }) && (
+      {isDraftDirty({ files, date, merchant, total, kind, category, items, note, gstOverride }) && (
         <button
           onClick={discard}
           className="self-center text-xs underline"

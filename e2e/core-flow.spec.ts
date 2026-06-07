@@ -177,9 +177,9 @@ test('income entry: own categories, + in list, gst nets off in export', async ({
   const path = await (await downloadPromise).path();
   const fs = await import('node:fs');
   const csv = fs.readFileSync(path, 'utf8');
-  expect(csv).toContain('Date,Kind,');
-  expect(csv).toContain(',Income,Client Invoice,Sales,200.00,30.00,230.00,');
-  expect(csv).toContain(',Expense,Office Rent,Other,100.00,15.00,115.00,');
+  expect(csv).toContain('Date,Kind,Merchant,Items,');
+  expect(csv).toContain(',Income,Client Invoice,,Sales,200.00,30.00,230.00,');
+  expect(csv).toContain(',Expense,Office Rent,,Other,100.00,15.00,115.00,');
 });
 
 test('dashboard shows monthly summary, trend, top lists and gst card', async ({ page }) => {
@@ -226,7 +226,8 @@ test('ai extract: upload → button → form filled → save', async ({ page }) 
                     total: 57.8,
                     kind: 'expense',
                     category: 'Other',
-                    note: 'Milk 2L ×2, bread · EFTPOS',
+                    items: ['Milk 2L ×2', 'Bread'],
+                    note: 'EFTPOS',
                   }),
                 },
               ],
@@ -249,11 +250,15 @@ test('ai extract: upload → button → form filled → save', async ({ page }) 
   // 表单被自动填入
   await expect(page.getByPlaceholder('Merchant')).toHaveValue('Pak n Save');
   await expect(page.getByPlaceholder('Total (incl. GST)')).toHaveValue('57.80');
-  await expect(page.getByPlaceholder('Note (optional)')).toHaveValue('Milk 2L ×2, bread · EFTPOS');
+  await expect(page.getByPlaceholder('Items (one per line, optional)')).toHaveValue(
+    'Milk 2L ×2\nBread',
+  );
+  await expect(page.getByPlaceholder('Note (optional)')).toHaveValue('EFTPOS');
   await expect(page.getByText('GST $7.54')).toBeVisible(); // 57.80 × 3/23
   // 直接保存即可入库
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Pak n Save')).toBeVisible();
+  await expect(page.getByText('Milk 2L ×2 · Bread')).toBeVisible(); // 列表卡片显示 items
 });
 
 test('custom localized date picker: sheet opens, pick a day, value updates', async ({ page }) => {

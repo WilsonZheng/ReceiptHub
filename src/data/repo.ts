@@ -11,6 +11,7 @@ export interface NewReceiptInput {
   gstCents: number;
   category: string;
   note?: string;
+  items?: string[];
   files: { full: Blob; thumb?: Blob; kind: PhotoKind }[];
 }
 
@@ -26,6 +27,7 @@ export async function saveReceipt(input: NewReceiptInput): Promise<Receipt> {
     gstCents: input.space === 'company' ? input.gstCents : 0,
     category: input.category,
     note: input.note?.trim() || undefined,
+    items: input.items?.length ? input.items : undefined,
     photos: input.files.map((f) => ({ id: ulid(), kind: f.kind })),
     createdAt: now,
     updatedAt: now,

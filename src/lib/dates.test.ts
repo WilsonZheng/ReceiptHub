@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatMonth } from './dates';
+import { formatDate, formatMonth, localToday } from './dates';
 
 describe('formatDate', () => {
   it('zh uses 年月日', () => {
@@ -19,4 +19,15 @@ describe('formatDate', () => {
 describe('formatMonth', () => {
   it('zh', () => expect(formatMonth('2026-06', 'zh')).toContain('6月'));
   it('en', () => expect(formatMonth('2026-06', 'en')).toMatch(/June 2026/));
+});
+
+describe('localToday', () => {
+  it('uses LOCAL date parts, not UTC (NZ 上午 UTC 还是昨天)', () => {
+    const d = new Date();
+    const expected = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+      d.getDate(),
+    ).padStart(2, '0')}`;
+    expect(localToday()).toBe(expected);
+    expect(localToday()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
 });

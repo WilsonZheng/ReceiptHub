@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useLocale, useT } from '../../lib/i18n';
-import { formatDate, formatMonth } from '../../lib/dates';
+import { formatDate, formatMonth, localToday } from '../../lib/dates';
 import { addMonths, monthGrid, weekdayLabels } from '../../lib/calendar';
 
 /**
@@ -13,7 +13,7 @@ export function DateField({ value, onChange }: { value: string; onChange: (iso: 
   const locale = useLocale();
   const t = useT();
 
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = localToday();
 
   function show() {
     setViewYm(value.slice(0, 7));

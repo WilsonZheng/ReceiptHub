@@ -17,6 +17,7 @@ export interface Receipt {
   gstCents: number; // personal 空间恒为 0
   category: string;
   note?: string;
+  items?: string[]; // 商品/服务明细（AI 提取或手填，每项一条）
   photos: PhotoRef[];
   createdAt: string; // ISO 8601
   updatedAt: string; // ISO 8601，LWW 合并依据

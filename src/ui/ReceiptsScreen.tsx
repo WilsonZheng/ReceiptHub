@@ -83,15 +83,23 @@ export function ReceiptsScreen({ space }: { space: Space }) {
                 animationDelay: `${Math.min(i, 8) * 28}ms`, // 进场微错峰
               }}
             >
-              <span>
+              <span className="min-w-0 flex-1 pr-2">
                 <span className="block text-sm font-semibold">{r.merchant}</span>
+                {r.items && r.items.length > 0 && (
+                  <span
+                    className="block truncate text-[10px]"
+                    style={{ color: 'var(--color-ink-muted)' }}
+                  >
+                    {r.items.join(' · ')}
+                  </span>
+                )}
                 <span className="block text-[10px]" style={{ color: 'var(--color-ink-muted)' }}>
                   {formatDate(r.date, locale)} · {categoryLabel(r.category, locale)}
                   {kindOf(r) === 'income' ? ` · ${t('income')}` : ''}
                   {r.space === 'personal' ? t('personalSuffix') : ''}
                 </span>
               </span>
-              <span className="text-right" style={{ fontFamily: 'var(--font-numeric)' }}>
+              <span className="shrink-0 text-right" style={{ fontFamily: 'var(--font-numeric)' }}>
                 <span className="block text-sm font-bold" style={{ color: 'var(--color-accent)' }}>
                   {kindOf(r) === 'income' ? '+' : ''}
                   {formatNZD(r.totalCents)}

@@ -23,6 +23,7 @@ export interface Extraction {
   totalCents?: number;
   kind?: Kind;
   category?: string;
+  items?: string[];
   note?: string;
 }
 
@@ -40,6 +41,7 @@ const RESPONSE_SCHEMA = {
     total: { type: 'NUMBER', description: 'total amount incl. GST in dollars' },
     kind: { type: 'STRING', enum: ['expense', 'income'] },
     category: { type: 'STRING' },
+    items: { type: 'ARRAY', items: { type: 'STRING' } },
     note: { type: 'STRING' },
   },
 };
@@ -54,7 +56,8 @@ function buildPrompt(categories: Record<Kind, string[]>, locale: Locale): string
     '- total: the final total amount including GST, in dollars.',
     "- kind: 'expense' for receipts/bills the user paid; 'income' only if this is clearly an invoice the user issued to a client. Default 'expense'.",
     `- category: pick the single best match. For expense choose from: ${categories.expense.join(', ')}. For income choose from: ${categories.income.join(', ')}.`,
-    `- note: a short useful summary in ${noteLang} (keep original product names): main items/services with quantities, invoice number if present, payment method if visible. Max 120 characters. Separate parts with " · ".`,
+    '- items: the main line items/services as a list, each entry like "Name ×qty" (keep original product names, max 10 entries; merge trivial ones).',
+    `- note: other useful info in ${noteLang}: invoice number if present, payment method if visible. Max 80 characters. Separate parts with " · ". Do NOT repeat the items here.`,
     'If multiple attachments are provided, they are photos/pages of the SAME single receipt or invoice — combine them into one record.',
     'Omit any field you cannot determine confidently.',
   ].join('\n');
@@ -106,6 +109,7 @@ export async function extractReceipt(
     total?: number;
     kind?: string;
     category?: string;
+    items?: unknown;
     note?: string;
   };
   try {
@@ -128,6 +132,13 @@ export async function extractReceipt(
   if (raw.kind === 'income' || raw.kind === 'expense') out.kind = raw.kind;
   if (raw.category && opts.categories[kind].includes(raw.category)) {
     out.category = raw.category;
+  }
+  if (Array.isArray(raw.items)) {
+    const items = raw.items
+      .filter((x): x is string => typeof x === 'string' && !!x.trim())
+      .map((x) => x.trim().slice(0, 60))
+      .slice(0, 12);
+    if (items.length) out.items = items;
   }
   if (raw.note?.trim()) out.note = raw.note.trim().slice(0, 200);
   return out;

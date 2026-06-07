@@ -2,6 +2,7 @@
 // 刻意不持久化到 localStorage：照片 blob 无法序列化，半截草稿（有字没图）反而困惑。
 import type { ProcessedFile } from './image';
 import type { Kind } from '../data/types';
+import { localToday } from './dates';
 
 export interface CaptureDraft {
   files: ProcessedFile[];
@@ -10,19 +11,19 @@ export interface CaptureDraft {
   total: string;
   kind: Kind;
   category: string;
+  items: string; // textarea 原文，每行一项
   note: string;
   gstOverride: number | null;
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
-
 export const emptyDraft = (): CaptureDraft => ({
   files: [],
-  date: today(),
+  date: localToday(),
   merchant: '',
   total: '',
   kind: 'expense',
   category: '',
+  items: '',
   note: '',
   gstOverride: null,
 });
@@ -38,4 +39,9 @@ export const clearDraft = (): void => {
 };
 
 export const isDraftDirty = (d: CaptureDraft): boolean =>
-  d.files.length > 0 || !!d.merchant.trim() || !!d.total.trim() || !!d.note.trim() || !!d.category;
+  d.files.length > 0 ||
+  !!d.merchant.trim() ||
+  !!d.total.trim() ||
+  !!d.note.trim() ||
+  !!d.items.trim() ||
+  !!d.category;

@@ -7,21 +7,27 @@ import { categoryLabel } from '../lib/categories';
 import { DateField } from './components/DateField';
 import type { Receipt, Space } from '../data/types';
 
-const iso = (d: Date) => d.toISOString().slice(0, 10);
-
 type PresetKind = 'thisMonth' | 'lastMonth' | 'last2Months';
+
+// 全部用本地时区组日期——NZ 上午用 UTC 会差一天
+const pad = (n: number) => String(n).padStart(2, '0');
+const ymd = (y: number, m0: number, d: number) => `${y}-${pad(m0 + 1)}-${pad(d)}`;
 
 function preset(kind: PresetKind): { from: string; to: string } {
   const now = new Date();
-  const first = (y: number, m: number) => new Date(Date.UTC(y, m, 1));
-  if (kind === 'thisMonth')
-    return { from: iso(first(now.getUTCFullYear(), now.getUTCMonth())), to: iso(now) };
-  if (kind === 'lastMonth')
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const today = ymd(y, m, now.getDate());
+  if (kind === 'thisMonth') return { from: ymd(y, m, 1), to: today };
+  if (kind === 'lastMonth') {
+    const end = new Date(y, m, 0); // 上月最后一天（本地）
     return {
-      from: iso(first(now.getUTCFullYear(), now.getUTCMonth() - 1)),
-      to: iso(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0))),
+      from: ymd(end.getFullYear(), end.getMonth(), 1),
+      to: ymd(end.getFullYear(), end.getMonth(), end.getDate()),
     };
-  return { from: iso(first(now.getUTCFullYear(), now.getUTCMonth() - 1)), to: iso(now) };
+  }
+  const prev = new Date(y, m - 1, 1);
+  return { from: ymd(prev.getFullYear(), prev.getMonth(), 1), to: today };
 }
 
 const PRESETS: { kind: PresetKind; labelKey: MsgKey }[] = [

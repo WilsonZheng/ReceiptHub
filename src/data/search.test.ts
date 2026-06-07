@@ -30,6 +30,10 @@ describe('searchReceipts', () => {
   it('matches category prefix', () => expect(searchReceipts(idx, 'equip')).toContain('1'));
   it('matches amount string', () => expect(searchReceipts(idx, '1299')).toContain('3'));
   it('empty query returns empty', () => expect(searchReceipts(idx, '  ')).toEqual([]));
+  it('matches item names', () => {
+    const idx2 = buildIndex([rec('5', { merchant: 'Shop', items: ['Pine Timber ×6', 'Screws'] })]);
+    expect(searchReceipts(idx2, 'timber')).toContain('5');
+  });
   it('excludes tombstones from index', () => {
     const idx2 = buildIndex([...docs, rec('4', { merchant: 'Deleted Shop', deleted: true })]);
     expect(searchReceipts(idx2, 'deleted shop')).not.toContain('4');

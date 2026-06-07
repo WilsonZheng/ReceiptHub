@@ -4,12 +4,13 @@ const esc = (s: string): string => (/[",\n]/.test(s) ? `"${s.replace(/"/g, '""')
 const money = (cents: number): string => (cents / 100).toFixed(2);
 
 export function receiptsToCsv(receipts: Receipt[]): string {
-  const header = 'Date,Kind,Merchant,Category,Net (NZD),GST (NZD),Total (NZD),Note,ReceiptID';
+  const header = 'Date,Kind,Merchant,Items,Category,Net (NZD),GST (NZD),Total (NZD),Note,ReceiptID';
   const rows = receipts.map((r) =>
     [
       r.date,
       kindOf(r) === 'income' ? 'Income' : 'Expense',
       esc(r.merchant),
+      esc((r.items ?? []).join('; ')),
       esc(r.category),
       money(r.totalCents - r.gstCents),
       money(r.gstCents),

@@ -18,6 +18,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
   const [date, setDate] = useState('');
   const [category, setCategory] = useState('');
   const [note, setNote] = useState('');
+  const [itemsText, setItemsText] = useState('');
   const [kind, setKind] = useState<Kind>('expense');
   const t = useT();
   const locale = useLocale();
@@ -32,6 +33,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
       setDate(r.date);
       setCategory(r.category);
       setNote(r.note ?? '');
+      setItemsText((r.items ?? []).join('\n'));
     });
     void db.photos.where('receiptId').equals(id).toArray().then(setPhotos);
   }, [id]);
@@ -42,6 +44,10 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
     const totalCents = parseNZD(total);
     if (totalCents === null || !receipt) return;
     const gstCents = receipt.space === 'company' ? gstFromTotalCents(totalCents) : 0;
+    const items = itemsText
+      .split('\n')
+      .map((s) => s.trim())
+      .filter(Boolean);
     await updateReceipt(id, {
       merchant,
       kind,
@@ -50,6 +56,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
       date,
       category,
       note: note || undefined,
+      items: items.length ? items : undefined,
     });
     onClose();
   }
@@ -98,7 +105,21 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
               {t(kindOf(receipt))} · {t(receipt.space)}
               {receipt.space === 'company' && ` · GST ${formatNZD(receipt.gstCents)}`}
             </p>
-            {receipt.note && <p className="mt-2 text-sm">{receipt.note}</p>}
+            {receipt.items && receipt.items.length > 0 && (
+              <ul className="mt-2 text-sm">
+                {receipt.items.map((it) => (
+                  <li key={it} className="flex gap-1.5">
+                    <span style={{ color: 'var(--color-ink-muted)' }}>•</span>
+                    <span>{it}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {receipt.note && (
+              <p className="mt-2 text-sm" style={{ whiteSpace: 'pre-line' }}>
+                {receipt.note}
+              </p>
+            )}
           </div>
           <div className="flex gap-2">
             <button
@@ -167,11 +188,19 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
               </button>
             ))}
           </div>
-          <input
+          <textarea
+            value={itemsText}
+            onChange={(e) => setItemsText(e.target.value)}
+            placeholder={t('itemsPlaceholder')}
+            rows={Math.min(6, Math.max(2, itemsText.split('\n').length))}
+            className="field resize-none"
+          />
+          <textarea
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder={t('note')}
-            className="field"
+            rows={Math.min(4, Math.max(1, note.split('\n').length))}
+            className="field resize-none"
           />
           <button
             onClick={() => void handleSave()}
