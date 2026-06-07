@@ -48,3 +48,21 @@ export function pctChange(cur: number, prev: number): number | null {
   if (prev === 0) return null;
   return Math.round(((cur - prev) / prev) * 100);
 }
+
+/** 两个 YYYY-MM 之间的月数（含两端） */
+export function monthsBetween(fromYm: string, toYm: string): number {
+  const [fy, fm] = fromYm.split('-').map(Number);
+  const [ty, tm] = toYm.split('-').map(Number);
+  return (ty - fy) * 12 + (tm - fm) + 1;
+}
+
+/** 最早一条有效票据所在月份；无数据返回 null */
+export function firstMonth(receipts: Receipt[]): string | null {
+  let min: string | null = null;
+  for (const r of receipts) {
+    if (r.deleted) continue;
+    const ym = r.date.slice(0, 7);
+    if (min === null || ym < min) min = ym;
+  }
+  return min;
+}

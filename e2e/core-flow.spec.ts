@@ -182,14 +182,28 @@ test('income entry: own categories, + in list, gst nets off in export', async ({
   expect(csv).toContain(',Expense,Office Rent,,Other,100.00,15.00,115.00,');
 });
 
-test('dashboard shows monthly summary, trend, top lists and gst card', async ({ page }) => {
+test('dashboard: range filters, net balance, tappable trend, category drill-down', async ({
+  page,
+}) => {
   await addReceipt(page, 'Mitre 10', '46.00', 'Equipment'); // 支出 GST 6.00
   await page.getByRole('button', { name: 'Stats' }).click();
-  await expect(page.getByText('Top categories (this month)')).toBeVisible();
-  await expect(page.getByText('Last 6 months')).toBeVisible();
-  await expect(page.getByText('Mitre 10')).toBeVisible(); // 商家排行
-  await expect(page.getByText('GST · last 2 months')).toBeVisible();
+  // 默认"全部"范围
+  await expect(page.getByText('Top categories')).toBeVisible();
+  await expect(page.getByText('Net', { exact: true })).toBeVisible(); // 结余行
   await expect(page.getByText(/Net GST/)).toBeVisible();
+  // 切到本月
+  await page.getByRole('button', { name: 'This month', exact: true }).click();
+  await expect(page.getByText('Mitre 10')).toBeVisible();
+  // 点击趋势柱聚焦当月 → 选中胶囊出现，再点 ✕ 清除
+  const now = new Date();
+  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  await page.getByRole('button', { name: ym, exact: true }).click();
+  await expect(page.getByRole('button', { name: /✕/ })).toBeVisible();
+  await page.getByRole('button', { name: /✕/ }).click();
+  await expect(page.getByRole('button', { name: /✕/ })).not.toBeVisible();
+  // 分类下钻：点 Equipment 行 → 展开商家构成
+  await page.getByRole('button', { name: /Equipment/ }).click();
+  await expect(page.getByText('— Mitre 10')).toBeVisible();
 });
 
 test('capture draft survives tab switches and can be discarded', async ({ page }) => {

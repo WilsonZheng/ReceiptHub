@@ -3,21 +3,39 @@ import { liveQuery } from 'dexie';
 import { db } from '../data/db';
 import { summarize } from '../lib/csv';
 import { formatNZD } from '../lib/money';
-import { aggregateByMonth, pctChange, topBy } from '../lib/stats';
-import { useLocale, useT } from '../lib/i18n';
+import { aggregateByMonth, firstMonth, monthsBetween, pctChange, topBy } from '../lib/stats';
+import { useLocale, useT, type MsgKey } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
+import { formatMonth } from '../lib/dates';
 import { localToday } from '../lib/dates';
 import { kindOf, type Receipt, type Space } from '../data/types';
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+type Range = 'month' | '6m' | 'year' | 'all';
+
+const RANGES: { id: Range; labelKey: MsgKey }[] = [
+  { id: 'month', labelKey: 'thisMonth' },
+  { id: '6m', labelKey: 'last6Months' },
+  { id: 'year', labelKey: 'thisYear' },
+  { id: 'all', labelKey: 'allTime' },
+];
+
+function Card({
+  title,
+  right,
+  children,
+}: {
+  title: string;
+  right?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <section className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
-      <h3
-        className="mb-2 text-xs font-bold tracking-wide"
-        style={{ color: 'var(--color-ink-muted)' }}
-      >
-        {title}
-      </h3>
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="text-xs font-bold tracking-wide" style={{ color: 'var(--color-ink-muted)' }}>
+          {title}
+        </h3>
+        {right}
+      </div>
       {children}
     </section>
   );
@@ -25,6 +43,9 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 
 export function DashboardScreen({ space }: { space: Space }) {
   const [all, setAll] = useState<Receipt[]>([]);
+  const [range, setRange] = useState<Range>('all'); // 默认：全部票据统计
+  const [selMonth, setSelMonth] = useState<string | null>(null); // 点击趋势柱聚焦某月
+  const [expandedCat, setExpandedCat] = useState<string | null>(null); // 分类下钻
   const t = useT();
   const locale = useLocale();
 
@@ -35,31 +56,77 @@ export function DashboardScreen({ space }: { space: Space }) {
     return () => sub.unsubscribe();
   }, []);
 
-  const today = localToday(); // 本地时区——NZ 上午用 UTC 会差一天
-  const curMonth = today.slice(0, 7);
-  const [cy, cm] = curMonth.split('-').map(Number);
-  const prevMonth = new Date(Date.UTC(cy, cm - 2, 1)).toISOString().slice(0, 7);
+  // 切换范围或空间时清掉聚焦状态
+  useEffect(() => {
+    setSelMonth(null);
+    setExpandedCat(null);
+  }, [range, space]);
+
+  const today = localToday();
+  const curYm = today.slice(0, 7);
 
   const scoped = useMemo(() => all.filter((r) => r.space === space), [all, space]);
-  const curList = useMemo(
-    () => scoped.filter((r) => r.date.startsWith(curMonth)),
-    [scoped, curMonth],
-  );
-  const prevList = useMemo(
-    () => scoped.filter((r) => r.date.startsWith(prevMonth)),
-    [scoped, prevMonth],
+
+  // 范围起始月
+  const rangeFromYm = useMemo(() => {
+    if (range === 'month') return curYm;
+    if (range === '6m') {
+      const [y, m] = curYm.split('-').map(Number);
+      return new Date(Date.UTC(y, m - 6, 1)).toISOString().slice(0, 7);
+    }
+    if (range === 'year') return `${curYm.slice(0, 4)}-01`;
+    return firstMonth(scoped) ?? curYm; // 全部：从最早一张票起
+  }, [range, curYm, scoped]);
+
+  const ranged = useMemo(
+    () =>
+      scoped.filter((r) => {
+        const ym = r.date.slice(0, 7);
+        return ym >= rangeFromYm && ym <= curYm;
+      }),
+    [scoped, rangeFromYm, curYm],
   );
 
-  const cur = useMemo(() => summarize(curList), [curList]);
-  const prev = useMemo(() => summarize(prevList), [prevList]);
-  const change = pctChange(cur.expense.totalCents, prev.expense.totalCents);
-  const trend = useMemo(() => aggregateByMonth(scoped, 6, today), [scoped, today]);
+  const monthsInRange = monthsBetween(rangeFromYm, curYm);
+  const trendN = Math.min(12, Math.max(monthsInRange, 6)); // 至少 6 根柱给上下文，最多 12
+  const trend = useMemo(() => aggregateByMonth(scoped, trendN, today), [scoped, trendN, today]);
   const maxBar = Math.max(...trend.map((m) => Math.max(m.expenseCents, m.incomeCents)), 1);
-  const curExpenses = useMemo(() => curList.filter((r) => kindOf(r) === 'expense'), [curList]);
-  const topCats = useMemo(() => topBy(curExpenses, (r) => r.category, 5), [curExpenses]);
-  const maxCat = topCats[0]?.[1] ?? 1;
-  const topMerch = useMemo(() => topBy(curExpenses, (r) => r.merchant, 5), [curExpenses]);
-  const period = useMemo(() => summarize([...curList, ...prevList]), [curList, prevList]);
+
+  const rangeSummary = useMemo(() => summarize(ranged), [ranged]);
+  // 聚焦集：选中某月 → 该月；否则 → 整个范围
+  const focus = useMemo(
+    () => (selMonth ? scoped.filter((r) => r.date.startsWith(selMonth)) : ranged),
+    [selMonth, scoped, ranged],
+  );
+  const focusSummary = useMemo(() => summarize(focus), [focus]);
+  const focusExpenses = useMemo(() => focus.filter((r) => kindOf(r) === 'expense'), [focus]);
+
+  const topCats = useMemo(() => topBy(focusExpenses, (r) => r.category, 6), [focusExpenses]);
+  const catTotal = focusSummary.expense.totalCents || 1;
+  const topMerch = useMemo(() => topBy(focusExpenses, (r) => r.merchant, 5), [focusExpenses]);
+
+  const netCents = rangeSummary.income.totalCents - rangeSummary.expense.totalCents;
+  const avgExpense = Math.round(rangeSummary.expense.totalCents / monthsInRange);
+
+  // 环比（仅本月范围下展示，最直观）
+  const prevYm = useMemo(() => {
+    const [y, m] = curYm.split('-').map(Number);
+    return new Date(Date.UTC(y, m - 2, 1)).toISOString().slice(0, 7);
+  }, [curYm]);
+  const prevSummary = useMemo(
+    () => summarize(scoped.filter((r) => r.date.startsWith(prevYm))),
+    [scoped, prevYm],
+  );
+  const change =
+    range === 'month'
+      ? pctChange(rangeSummary.expense.totalCents, prevSummary.expense.totalCents)
+      : null;
+
+  // GST 申报周期卡（公司）：固定本月+上月，与筛选无关
+  const gstPeriod = useMemo(
+    () => summarize(scoped.filter((r) => r.date.startsWith(curYm) || r.date.startsWith(prevYm))),
+    [scoped, curYm, prevYm],
+  );
 
   if (scoped.length === 0) {
     return (
@@ -71,99 +138,206 @@ export function DashboardScreen({ space }: { space: Space }) {
 
   return (
     <div className="flex flex-col gap-3 py-2">
-      {/* 本月概览 */}
-      <Card title={`${t('thisMonth')} · ${t(space)}`}>
+      {/* 范围筛选 */}
+      <div className="flex gap-1.5">
+        {RANGES.map((r) => (
+          <button
+            key={r.id}
+            onClick={() => setRange(r.id)}
+            className="flex-1 rounded-full px-2 py-1.5 text-xs font-semibold"
+            style={
+              range === r.id
+                ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
+                : { background: 'var(--color-surface-2)', color: 'var(--color-ink-muted)' }
+            }
+          >
+            {t(r.labelKey)}
+          </button>
+        ))}
+      </div>
+
+      {/* 总览：支出 / 收入 / 结余 / 月均 */}
+      <Card title={`${t(RANGES.find((r) => r.id === range)!.labelKey)} · ${t(space)}`}>
         <div className="flex items-baseline justify-between">
           <span className="text-sm">
-            {t('expense')} ({cur.expense.count})
+            {t('expense')} ({rangeSummary.expense.count})
           </span>
           <span className="text-2xl font-bold" style={{ fontFamily: 'var(--font-numeric)' }}>
-            {formatNZD(cur.expense.totalCents)}
+            {formatNZD(rangeSummary.expense.totalCents)}
           </span>
         </div>
         <div className="flex items-baseline justify-between">
           <span className="text-sm">
-            {t('income')} ({cur.income.count})
+            {t('income')} ({rangeSummary.income.count})
           </span>
           <span
             className="text-lg font-bold"
             style={{ fontFamily: 'var(--font-numeric)', color: 'var(--color-accent)' }}
           >
-            +{formatNZD(cur.income.totalCents)}
+            +{formatNZD(rangeSummary.income.totalCents)}
           </span>
         </div>
-        {change !== null && (
-          <p
-            className="mt-1 text-xs"
-            style={{ color: change > 0 ? 'var(--color-danger)' : 'var(--color-accent)' }}
+        <div
+          className="mt-1 flex items-baseline justify-between border-t pt-1"
+          style={{ borderColor: 'var(--color-border)' }}
+        >
+          <span className="text-sm font-semibold">{t('balance')}</span>
+          <span
+            className="text-lg font-bold"
+            style={{
+              fontFamily: 'var(--font-numeric)',
+              color: netCents >= 0 ? 'var(--color-accent)' : 'var(--color-danger)',
+            }}
           >
-            {t('expense')} {change > 0 ? '↑' : '↓'} {Math.abs(change)}% {t('vsLastMonth')}
+            {netCents >= 0 ? '+' : ''}
+            {formatNZD(netCents)}
+          </span>
+        </div>
+        <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+          {monthsInRange > 1 && (
+            <>
+              {t('avgMonthly')} {formatNZD(avgExpense)}
+            </>
+          )}
+          {change !== null && (
+            <span style={{ color: change > 0 ? 'var(--color-danger)' : 'var(--color-accent)' }}>
+              {t('expense')} {change > 0 ? '↑' : '↓'} {Math.abs(change)}% {t('vsLastMonth')}
+            </span>
+          )}
+        </p>
+      </Card>
+
+      {/* 趋势：柱子可点击聚焦某月 */}
+      <Card
+        title={t('trend')}
+        right={
+          selMonth && (
+            <button
+              onClick={() => setSelMonth(null)}
+              className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
+            >
+              {formatMonth(selMonth, locale)} ✕
+            </button>
+          )
+        }
+      >
+        <div className="flex h-24 items-end justify-between gap-1">
+          {trend.map((m) => {
+            const dimmed = selMonth !== null && selMonth !== m.month;
+            return (
+              <button
+                key={m.month}
+                aria-label={m.month}
+                onClick={() => {
+                  setSelMonth(selMonth === m.month ? null : m.month);
+                  setExpandedCat(null);
+                }}
+                className="flex h-full flex-1 flex-col items-center justify-end gap-0.5"
+                style={{ opacity: dimmed ? 0.35 : 1 }}
+              >
+                <div className="flex w-full flex-1 items-end justify-center gap-0.5">
+                  <div
+                    className="w-2.5 rounded-t"
+                    style={{
+                      height: `${(m.expenseCents / maxBar) * 100}%`,
+                      background: 'var(--color-ink-muted)',
+                      minHeight: m.expenseCents > 0 ? 2 : 0,
+                    }}
+                  />
+                  <div
+                    className="w-2.5 rounded-t"
+                    style={{
+                      height: `${(m.incomeCents / maxBar) * 100}%`,
+                      background: 'var(--color-accent)',
+                      minHeight: m.incomeCents > 0 ? 2 : 0,
+                    }}
+                  />
+                </div>
+                <span
+                  className="text-[9px] font-semibold"
+                  style={{
+                    color: selMonth === m.month ? 'var(--color-accent)' : 'var(--color-ink-muted)',
+                  }}
+                >
+                  {m.month.slice(5)}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {selMonth && (
+          <p className="mt-2 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+            {t('expense')} {formatNZD(focusSummary.expense.totalCents)} · {t('income')} +
+            {formatNZD(focusSummary.income.totalCents)} ·{' '}
+            {focusSummary.expense.count + focusSummary.income.count} {t('receiptsUnit')}
           </p>
         )}
       </Card>
 
-      {/* 近 6 个月趋势 */}
-      <Card title={t('last6Months')}>
-        <div className="flex h-24 items-end justify-between gap-1">
-          {trend.map((m) => (
-            <div key={m.month} className="flex flex-1 flex-col items-center gap-0.5">
-              <div className="flex w-full flex-1 items-end justify-center gap-0.5">
-                <div
-                  className="w-2.5 rounded-t"
-                  style={{
-                    height: `${(m.expenseCents / maxBar) * 100}%`,
-                    background: 'var(--color-ink-muted)',
-                    minHeight: m.expenseCents > 0 ? 2 : 0,
-                  }}
-                  title={`${m.month} ${t('expense')} ${formatNZD(m.expenseCents)}`}
-                />
-                <div
-                  className="w-2.5 rounded-t"
-                  style={{
-                    height: `${(m.incomeCents / maxBar) * 100}%`,
-                    background: 'var(--color-accent)',
-                    minHeight: m.incomeCents > 0 ? 2 : 0,
-                  }}
-                  title={`${m.month} ${t('income')} ${formatNZD(m.incomeCents)}`}
-                />
-              </div>
-              <span className="text-[9px]" style={{ color: 'var(--color-ink-muted)' }}>
-                {m.month.slice(5)}
-              </span>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      {/* 本月分类排行（支出） */}
+      {/* 分类排行：占比 % + 点击下钻看商家构成 */}
       {topCats.length > 0 && (
         <Card title={t('topCategories')}>
           <ul className="flex flex-col gap-1.5">
-            {topCats.map(([c, cents]) => (
-              <li key={c} className="text-xs">
-                <div className="flex justify-between">
-                  <span>{categoryLabel(c, locale)}</span>
-                  <span style={{ fontFamily: 'var(--font-numeric)' }}>{formatNZD(cents)}</span>
-                </div>
-                <div
-                  className="mt-0.5 h-1.5 rounded-full"
-                  style={{ background: 'var(--color-surface-2)' }}
-                >
-                  <div
-                    className="h-full rounded-full"
-                    style={{
-                      width: `${(cents / maxCat) * 100}%`,
-                      background: 'var(--color-accent)',
-                    }}
-                  />
-                </div>
-              </li>
-            ))}
+            {topCats.map(([c, cents]) => {
+              const pct = Math.round((cents / catTotal) * 100);
+              const expanded = expandedCat === c;
+              const catMerchants = expanded
+                ? topBy(
+                    focusExpenses.filter((r) => r.category === c),
+                    (r) => r.merchant,
+                    4,
+                  )
+                : [];
+              return (
+                <li key={c} className="text-xs">
+                  <button
+                    onClick={() => setExpandedCat(expanded ? null : c)}
+                    className="w-full text-left"
+                  >
+                    <div className="flex justify-between">
+                      <span>
+                        {categoryLabel(c, locale)}{' '}
+                        <span style={{ color: 'var(--color-ink-muted)' }}>{pct}%</span>
+                      </span>
+                      <span style={{ fontFamily: 'var(--font-numeric)' }}>{formatNZD(cents)}</span>
+                    </div>
+                    <div
+                      className="mt-0.5 h-1.5 rounded-full"
+                      style={{ background: 'var(--color-surface-2)' }}
+                    >
+                      <div
+                        className="h-full rounded-full"
+                        style={{
+                          width: `${pct}%`,
+                          background: 'var(--color-accent)',
+                          transition: 'width .3s cubic-bezier(.32,.72,0,1)',
+                        }}
+                      />
+                    </div>
+                  </button>
+                  {expanded && (
+                    <ul className="screen-in mt-1 flex flex-col gap-0.5 pl-3">
+                      {catMerchants.map(([m, mc]) => (
+                        <li
+                          key={m}
+                          className="flex justify-between"
+                          style={{ color: 'var(--color-ink-muted)' }}
+                        >
+                          <span>— {m}</span>
+                          <span style={{ fontFamily: 'var(--font-numeric)' }}>{formatNZD(mc)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         </Card>
       )}
 
-      {/* 本月商家排行（支出） */}
+      {/* 商家排行 */}
       {topMerch.length > 0 && (
         <Card title={t('topMerchants')}>
           <ul className="flex flex-col gap-1 text-xs">
@@ -179,19 +353,19 @@ export function DashboardScreen({ space }: { space: Space }) {
         </Card>
       )}
 
-      {/* GST 近两月（仅公司） */}
+      {/* GST 申报周期（公司）：固定近两月，与上方筛选无关 */}
       {space === 'company' && (
         <Card title={t('gstPeriod')}>
           <div className="flex justify-between text-xs">
             <span>{t('gstPaid')}</span>
             <span style={{ fontFamily: 'var(--font-numeric)' }}>
-              {formatNZD(period.expense.gstCents)}
+              {formatNZD(gstPeriod.expense.gstCents)}
             </span>
           </div>
           <div className="flex justify-between text-xs">
             <span>{t('gstCollected')}</span>
             <span style={{ fontFamily: 'var(--font-numeric)' }}>
-              {formatNZD(period.income.gstCents)}
+              {formatNZD(gstPeriod.income.gstCents)}
             </span>
           </div>
           <div
@@ -200,7 +374,7 @@ export function DashboardScreen({ space }: { space: Space }) {
           >
             <span>{t('netGst')}</span>
             <span style={{ fontFamily: 'var(--font-numeric)', color: 'var(--color-accent)' }}>
-              {formatNZD(period.income.gstCents - period.expense.gstCents)}
+              {formatNZD(gstPeriod.income.gstCents - gstPeriod.expense.gstCents)}
             </span>
           </div>
         </Card>

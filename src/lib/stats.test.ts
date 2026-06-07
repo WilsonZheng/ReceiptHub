@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Receipt } from '../data/types';
-import { aggregateByMonth, pctChange, topBy } from './stats';
+import { aggregateByMonth, firstMonth, monthsBetween, pctChange, topBy } from './stats';
 
 const rec = (date: string, totalCents: number, extra: Partial<Receipt> = {}): Receipt => ({
   id: date + totalCents,
@@ -70,4 +70,23 @@ describe('pctChange', () => {
   it('computes rounded percent', () => expect(pctChange(150, 100)).toBe(50));
   it('negative', () => expect(pctChange(50, 100)).toBe(-50));
   it('null when no baseline', () => expect(pctChange(10, 0)).toBeNull());
+});
+
+describe('monthsBetween', () => {
+  it('inclusive within year', () => expect(monthsBetween('2026-01', '2026-06')).toBe(6));
+  it('across year boundary', () => expect(monthsBetween('2025-11', '2026-02')).toBe(4));
+  it('same month is 1', () => expect(monthsBetween('2026-06', '2026-06')).toBe(1));
+});
+
+describe('firstMonth', () => {
+  it('returns earliest non-deleted month', () => {
+    expect(
+      firstMonth([
+        rec('2026-06-01', 1),
+        rec('2025-03-15', 1),
+        rec('2024-01-01', 1, { deleted: true }),
+      ]),
+    ).toBe('2025-03');
+  });
+  it('null when empty', () => expect(firstMonth([])).toBeNull());
 });
