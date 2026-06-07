@@ -55,7 +55,7 @@ export function TopNav({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void
           {/* 点击菜单外任意处关闭 */}
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div
-            className="absolute right-4 top-full z-50 mt-1 flex min-w-36 flex-col overflow-hidden rounded-xl border shadow-lg"
+            className="pop-in absolute right-4 top-full z-50 mt-1 flex min-w-36 flex-col overflow-hidden rounded-xl border shadow-lg"
             style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border)' }}
           >
             {MORE.map((item) => (

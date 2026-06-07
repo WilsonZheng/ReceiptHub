@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { db } from '../data/db';
 import { clearPat, getConfig, setConfig, DATA_REPO } from '../lib/settings';
 import { setLocale, useLocale, useT, type Locale } from '../lib/i18n';
+import { categoryLabel } from '../lib/categories';
 import { setTheme, useTheme, type Theme } from '../lib/theme';
 import { syncNow, useSyncStatus } from '../sync/useSync';
 import type { AppConfig, Kind, Space } from '../data/types';
@@ -149,7 +150,7 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
                       className="rounded-full px-2.5 py-1 text-xs"
                       style={{ background: 'var(--color-surface-2)' }}
                     >
-                      {c}{' '}
+                      {categoryLabel(c, locale)}{' '}
                       <button onClick={() => removeCategory(sp, k, c)} aria-label={`Remove ${c}`}>
                         ✕
                       </button>

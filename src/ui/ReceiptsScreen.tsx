@@ -3,7 +3,9 @@ import { liveQuery } from 'dexie';
 import { db } from '../data/db';
 import { buildIndex, searchReceipts } from '../data/search';
 import { formatNZD } from '../lib/money';
-import { useT } from '../lib/i18n';
+import { useLocale, useT } from '../lib/i18n';
+import { categoryLabel } from '../lib/categories';
+import { formatDate, formatMonth } from '../lib/dates';
 import { kindOf, type Receipt, type Space } from '../data/types';
 import { ReceiptDetail } from './ReceiptDetail';
 
@@ -13,6 +15,7 @@ export function ReceiptsScreen({ space }: { space: Space }) {
   const [scope, setScope] = useState<Space | 'all'>(space);
   const [openId, setOpenId] = useState<string | null>(null);
   const t = useT();
+  const locale = useLocale();
 
   useEffect(() => setScope(space), [space]);
   useEffect(() => {
@@ -67,22 +70,23 @@ export function ReceiptsScreen({ space }: { space: Space }) {
             className="py-1 text-[10px] font-bold tracking-widest"
             style={{ color: 'var(--color-ink-muted)' }}
           >
-            {month}
+            {formatMonth(month, locale)}
           </h3>
-          {recs.map((r) => (
+          {recs.map((r, i) => (
             <button
               key={r.id}
               onClick={() => setOpenId(r.id)}
-              className="mb-1.5 flex w-full items-center justify-between rounded-xl p-3 text-left"
+              className="row-in mb-1.5 flex w-full items-center justify-between rounded-xl p-3 text-left"
               style={{
                 background: 'var(--color-surface)',
                 border: '1px solid var(--color-border)',
+                animationDelay: `${Math.min(i, 8) * 28}ms`, // 进场微错峰
               }}
             >
               <span>
                 <span className="block text-sm font-semibold">{r.merchant}</span>
                 <span className="block text-[10px]" style={{ color: 'var(--color-ink-muted)' }}>
-                  {r.date} · {r.category}
+                  {formatDate(r.date, locale)} · {categoryLabel(r.category, locale)}
                   {kindOf(r) === 'income' ? ` · ${t('income')}` : ''}
                   {r.space === 'personal' ? t('personalSuffix') : ''}
                 </span>

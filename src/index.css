@@ -43,6 +43,105 @@ body {
   }
 }
 
+/* ════════ iOS 动效体系 ════════
+   统一用 iOS 系统缓动 cubic-bezier(.32,.72,0,1)（UIKit spring 的近似），
+   时长 0.2-0.32s——快到不挡手，慢到能感知。 */
+
+/* 按压反馈：iOS 的标志性手感——所有可点元素按下缩到 96% */
+button,
+a,
+[role='button'] {
+  transition:
+    transform 0.18s cubic-bezier(0.32, 0.72, 0, 1),
+    background-color 0.2s ease,
+    color 0.2s ease,
+    opacity 0.2s ease;
+}
+button:active,
+a:active,
+[role='button']:active {
+  transform: scale(0.96);
+}
+
+/* Tab 切换：内容轻微上浮淡入 */
+.screen-in {
+  animation: screen-in 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* 详情页：iOS push 式从右滑入 */
+.push-in {
+  animation: push-in 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@keyframes push-in {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+
+/* ⋯ 菜单：iOS 上下文菜单式从锚点弹出 */
+.pop-in {
+  transform-origin: top right;
+  animation: pop-in 0.22s cubic-bezier(0.34, 1.35, 0.46, 1) both;
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(-4px);
+  }
+}
+
+/* 全屏预览：背景淡入 + 图片缩放浮现 */
+.fade-in {
+  animation: fade-in 0.2s ease-out both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+.zoom-in {
+  animation: zoom-in 0.26s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@keyframes zoom-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+/* 顶部横幅：下落进场 */
+.drop-in {
+  animation: drop-in 0.3s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@keyframes drop-in {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+}
+
+/* 列表行：进场微错峰（配合 JS 设 animation-delay） */
+.row-in {
+  animation: screen-in 0.3s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+/* 无障碍：尊重系统"减弱动态效果"设置 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* 消除 iOS 双击缩放延迟和点击高亮闪烁 */
 button,
 input,

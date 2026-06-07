@@ -4,7 +4,8 @@ import { db } from '../data/db';
 import { summarize } from '../lib/csv';
 import { formatNZD } from '../lib/money';
 import { aggregateByMonth, pctChange, topBy } from '../lib/stats';
-import { useT } from '../lib/i18n';
+import { useLocale, useT } from '../lib/i18n';
+import { categoryLabel } from '../lib/categories';
 import { kindOf, type Receipt, type Space } from '../data/types';
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
@@ -24,6 +25,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 export function DashboardScreen({ space }: { space: Space }) {
   const [all, setAll] = useState<Receipt[]>([]);
   const t = useT();
+  const locale = useLocale();
 
   useEffect(() => {
     const sub = liveQuery(() => db.receipts.toArray()).subscribe({
@@ -139,7 +141,7 @@ export function DashboardScreen({ space }: { space: Space }) {
             {topCats.map(([c, cents]) => (
               <li key={c} className="text-xs">
                 <div className="flex justify-between">
-                  <span>{c}</span>
+                  <span>{categoryLabel(c, locale)}</span>
                   <span style={{ fontFamily: 'var(--font-numeric)' }}>{formatNZD(cents)}</span>
                 </div>
                 <div

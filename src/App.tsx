@@ -38,7 +38,7 @@ export default function App() {
   const updateBanner = needRefresh && (
     <button
       onClick={() => void updateServiceWorker(true)}
-      className="w-full px-4 py-2 text-center text-xs font-semibold"
+      className="drop-in w-full px-4 py-2 text-center text-xs font-semibold"
       style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
     >
       {t('updateReady')} → {t('refresh')}
@@ -66,7 +66,7 @@ export default function App() {
       {updateBanner}
       {authBanner && (
         <div
-          className="px-4 py-2 text-center text-xs font-semibold"
+          className="drop-in px-4 py-2 text-center text-xs font-semibold"
           style={{ background: 'var(--color-danger)', color: '#fff' }}
         >
           {t('authBanner')}{' '}
@@ -84,11 +84,14 @@ export default function App() {
       </header>
       <TopNav tab={tab} onChange={setTab} />
       <main className="flex-1 overflow-y-auto px-4 pb-[env(safe-area-inset-bottom)]">
-        {tab === 'capture' && <CaptureScreen space={space} onSaved={() => setTab('receipts')} />}
-        {tab === 'receipts' && <ReceiptsScreen space={space} />}
-        {tab === 'stats' && <DashboardScreen space={space} />}
-        {tab === 'export' && <ExportScreen space={space} />}
-        {tab === 'settings' && <SettingsScreen onPatCleared={() => setUnlocked(false)} />}
+        {/* key 驱动 Tab 切换动画：每次换屏重新触发 screen-in */}
+        <div key={tab} className="screen-in">
+          {tab === 'capture' && <CaptureScreen space={space} onSaved={() => setTab('receipts')} />}
+          {tab === 'receipts' && <ReceiptsScreen space={space} />}
+          {tab === 'stats' && <DashboardScreen space={space} />}
+          {tab === 'export' && <ExportScreen space={space} />}
+          {tab === 'settings' && <SettingsScreen onPatCleared={() => setUnlocked(false)} />}
+        </div>
       </main>
     </div>
   );

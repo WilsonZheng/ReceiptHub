@@ -3,7 +3,9 @@ import { db, type PhotoRow } from '../data/db';
 import { softDeleteReceipt, updateReceipt } from '../data/repo';
 import { formatNZD, gstFromTotalCents, parseNZD } from '../lib/money';
 import { getConfig } from '../lib/settings';
-import { useT } from '../lib/i18n';
+import { useLocale, useT } from '../lib/i18n';
+import { categoryLabel } from '../lib/categories';
+import { formatDate } from '../lib/dates';
 import { kindOf, type Kind, type Receipt } from '../data/types';
 
 export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void }) {
@@ -17,6 +19,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
   const [note, setNote] = useState('');
   const [kind, setKind] = useState<Kind>('expense');
   const t = useT();
+  const locale = useLocale();
 
   useEffect(() => {
     void db.receipts.get(id).then((r) => {
@@ -58,7 +61,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
   }
 
   return (
-    <div className="flex flex-col gap-3 py-2">
+    <div className="push-in flex flex-col gap-3 py-2">
       <button onClick={onClose} className="btn-secondary self-start">
         {t('back')}
       </button>
@@ -90,7 +93,8 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
               {formatNZD(receipt.totalCents)}
             </p>
             <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-              {receipt.date} · {receipt.category} · {t(kindOf(receipt))} · {t(receipt.space)}
+              {formatDate(receipt.date, locale)} · {categoryLabel(receipt.category, locale)} ·{' '}
+              {t(kindOf(receipt))} · {t(receipt.space)}
               {receipt.space === 'company' && ` · GST ${formatNZD(receipt.gstCents)}`}
             </p>
             {receipt.note && <p className="mt-2 text-sm">{receipt.note}</p>}
@@ -158,7 +162,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
                     : { background: 'var(--color-surface-2)' }
                 }
               >
-                {c}
+                {categoryLabel(c, locale)}
               </button>
             ))}
           </div>

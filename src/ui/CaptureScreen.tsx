@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { processFile, type ProcessedFile } from '../lib/image';
 import { formatNZD, gstFromTotalCents, parseNZD } from '../lib/money';
 import { getConfig } from '../lib/settings';
-import { useT } from '../lib/i18n';
+import { useLocale, useT } from '../lib/i18n';
+import { categoryLabel } from '../lib/categories';
 import { saveReceipt } from '../data/repo';
 import { db } from '../data/db';
 import type { Kind, Space } from '../data/types';
@@ -25,6 +26,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState<ProcessedFile | null>(null);
   const t = useT();
+  const locale = useLocale();
 
   useEffect(() => {
     void db.receipts
@@ -196,13 +198,13 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       {/* 点缩略图全屏预览，点任意处关闭 */}
       {preview && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          className="fade-in fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,.88)' }}
           onClick={() => setPreview(null)}
         >
           <img
             src={URL.createObjectURL(preview.full)}
-            className="max-h-full max-w-full rounded-lg object-contain"
+            className="zoom-in max-h-full max-w-full rounded-lg object-contain"
             alt=""
           />
         </div>
@@ -264,7 +266,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
                 : { background: 'var(--color-surface-2)', color: 'var(--color-ink-muted)' }
             }
           >
-            {c}
+            {categoryLabel(c, locale)}
           </button>
         ))}
       </div>

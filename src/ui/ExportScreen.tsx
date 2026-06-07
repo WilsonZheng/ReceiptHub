@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { listReceipts } from '../data/repo';
 import { receiptsToCsv, summarize } from '../lib/csv';
 import { formatNZD } from '../lib/money';
-import { useT, type MsgKey } from '../lib/i18n';
+import { useLocale, useT, type MsgKey } from '../lib/i18n';
+import { categoryLabel } from '../lib/categories';
 import type { Receipt, Space } from '../data/types';
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -32,6 +33,7 @@ export function ExportScreen({ space }: { space: Space }) {
   const [{ from, to }, setRange] = useState(preset('last2Months'));
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const t = useT();
+  const locale = useLocale();
 
   useEffect(() => {
     void listReceipts(space).then((rs) =>
@@ -119,7 +121,7 @@ export function ExportScreen({ space }: { space: Space }) {
               {Object.entries(side.byCategory).map(([c, cents]) => (
                 <li key={c} className="flex justify-between">
                   <span>
-                    {c}
+                    {categoryLabel(c, locale)}
                     {k === 'income' ? ` · ${t('income')}` : ''}
                   </span>
                   <span style={{ fontFamily: 'var(--font-numeric)' }}>{formatNZD(cents)}</span>

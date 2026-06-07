@@ -16,15 +16,15 @@
   --radius-card: 12px;
 }
 
-/* Light mode：Midnight Ledger 的浅色姊妹版（同一薄荷绿色系，对比度调深） */
+/* Light mode：iOS 分组列表质感（systemGroupedBackground）+ 薄荷绿品牌色 */
 [data-theme='light'] {
-  --color-bg: #f4f7f6;
+  --color-bg: #f2f2f7;
   --color-surface: #ffffff;
-  --color-surface-2: #e9eeec;
-  --color-border: #dde4e1;
-  --color-ink: #10201c;
-  --color-ink-muted: #66737d;
+  --color-surface-2: #e9e9ee;
+  --color-border: #e4e4e9;
+  --color-ink: #1c1c1e;
+  --color-ink-muted: #8a8a8e;
   --color-accent: #0f9d6a;
   --color-accent-ink: #ffffff;
-  --color-danger: #c43d3d;
+  --color-danger: #d64545;
 }

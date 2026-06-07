@@ -179,9 +179,18 @@ function detect(): Locale {
 let locale: Locale = detect();
 const listeners = new Set<() => void>();
 
+// html lang 决定原生控件（日期选择器等）的语言
+function applyLang(l: Locale): void {
+  if (typeof document !== 'undefined') {
+    document.documentElement.lang = l === 'zh' ? 'zh-CN' : 'en-NZ';
+  }
+}
+applyLang(locale);
+
 export function setLocale(l: Locale): void {
   locale = l;
   if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, l);
+  applyLang(l);
   listeners.forEach((fn) => fn());
 }
 
