@@ -11,7 +11,7 @@ import { DashboardScreen } from './ui/DashboardScreen';
 import { ExportScreen } from './ui/ExportScreen';
 import { SettingsScreen } from './ui/SettingsScreen';
 import { SpaceToggle } from './ui/components/SpaceToggle';
-import { TabBar, type Tab } from './ui/components/TabBar';
+import { TopNav, type Tab } from './ui/components/TopNav';
 import { SyncDot } from './ui/components/SyncDot';
 
 export default function App() {
@@ -82,14 +82,14 @@ export default function App() {
           <SpaceToggle space={space} onChange={setSpace} />
         </div>
       </header>
-      <main className="flex-1 overflow-y-auto px-4 pb-2">
+      <TopNav tab={tab} onChange={setTab} />
+      <main className="flex-1 overflow-y-auto px-4 pb-[env(safe-area-inset-bottom)]">
         {tab === 'capture' && <CaptureScreen space={space} onSaved={() => setTab('receipts')} />}
         {tab === 'receipts' && <ReceiptsScreen space={space} />}
         {tab === 'stats' && <DashboardScreen space={space} />}
         {tab === 'export' && <ExportScreen space={space} />}
         {tab === 'settings' && <SettingsScreen onPatCleared={() => setUnlocked(false)} />}
       </main>
-      <TabBar tab={tab} onChange={setTab} />
     </div>
   );
 }

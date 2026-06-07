@@ -38,6 +38,12 @@ async function unlock(page: Page) {
   await page.getByRole('button', { name: 'Unlock' }).click();
 }
 
+// Export/Settings 收在顶部 ⋯ 菜单里
+async function openMore(page: Page, item: string) {
+  await page.getByRole('button', { name: 'More' }).click();
+  await page.getByRole('button', { name: item }).click(); // 菜单项名带 emoji 前缀，子串匹配
+}
+
 async function addReceipt(page: Page, merchant: string, total: string, category: string) {
   const chooserPromise = page.waitForEvent('filechooser');
   await page.getByText('Upload from library').click();
@@ -78,7 +84,7 @@ test('capture → list → fuzzy search → export csv', async ({ page }) => {
   await page.getByPlaceholder(/Search merchant/).clear();
 
   // 导出
-  await page.getByRole('button', { name: 'Export' }).click();
+  await openMore(page, 'Export');
   await expect(page.getByText('Expense (1)')).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download CSV' }).click();
@@ -105,13 +111,13 @@ test('offline capture queues, sync drains outbox when online', async ({ page, co
   await addReceipt(page, 'Offline Cafe', '12.00', 'Other');
   await expect(page.getByText('Offline Cafe')).toBeVisible(); // 本地立即可见
   await context.setOffline(false);
-  await page.getByRole('button', { name: 'Settings' }).click();
+  await openMore(page, 'Settings');
   await page.getByRole('button', { name: 'Sync now' }).click();
   await expect(page.getByText(/synced · 0 pending/)).toBeVisible({ timeout: 15_000 });
 });
 
 test('lock screen shows only a password box and leaks no auth mechanism', async ({ page }) => {
-  await page.getByRole('button', { name: 'Settings' }).click();
+  await openMore(page, 'Settings');
   await page.getByRole('button', { name: 'Clear credentials & lock' }).click();
   await expect(page.getByPlaceholder('Password')).toBeVisible();
   // 锁屏不得泄露认证机制（GitHub/PAT/token/数据仓库名）
@@ -120,11 +126,11 @@ test('lock screen shows only a password box and leaks no auth mechanism', async 
   );
   await page.getByPlaceholder('Password').fill('github_pat_test');
   await page.getByRole('button', { name: 'Unlock' }).click();
-  await expect(page.getByRole('button', { name: 'Settings' })).toBeVisible(); // 重新解锁成功
+  await expect(page.getByRole('button', { name: 'More' })).toBeVisible(); // 重新解锁成功
 });
 
 test('theme and language switching persists', async ({ page }) => {
-  await page.getByRole('button', { name: 'Settings' }).click();
+  await openMore(page, 'Settings');
   // Playwright 默认模拟 prefers-color-scheme: light → 初始应为 light
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
   await page.getByRole('button', { name: 'Dark', exact: true }).click();
@@ -133,7 +139,7 @@ test('theme and language switching persists', async ({ page }) => {
   await expect(page.getByRole('button', { name: '票据' })).toBeVisible(); // tab 已切中文
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark'); // 主题持久化
-  await expect(page.getByRole('button', { name: '设置' })).toBeVisible(); // 语言持久化
+  await expect(page.getByRole('button', { name: '更多' })).toBeVisible(); // 语言持久化
 });
 
 test('income entry: own categories, + in list, gst nets off in export', async ({ page }) => {
@@ -157,7 +163,7 @@ test('income entry: own categories, + in list, gst nets off in export', async ({
   await expect(page.getByText('+$230.00')).toBeVisible();
 
   // Export：进销项相抵，净额 = 30 - 15 = 15
-  await page.getByRole('button', { name: 'Export' }).click();
+  await openMore(page, 'Export');
   await expect(page.getByText('Income (1)')).toBeVisible();
   await expect(page.getByText(/Net GST \$15\.00/)).toBeVisible();
 
