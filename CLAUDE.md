@@ -6,11 +6,20 @@
 
 ```bash
 npm run dev              # 本地开发
+./scripts/verify.sh      # ★ 一键验证门（prettier→tsc→vitest→build→playwright，与 CI 一致，须见 ALL GREEN）
 npm run build            # tsc --noEmit && vite build（CI 同款）
 npx vitest run           # 单元测试（node 环境，fake-indexeddb）
 npx playwright test      # e2e（自动起 preview 服务器，需先 build 产出 dist/）
 npx prettier --write src e2e
 ```
+
+## AI 协作基础设施
+
+- **`AGENTS.md`**：跨工具 agent 入口（硬规则摘要），`.github/copilot-instructions.md` 同向指引——两者都指回本文件为深度知识库；规则有变三处同步
+- **`scripts/verify.sh`**：唯一验证门，提交前必须 ALL GREEN
+- **PR 模板**强制贴 verify 输出；**Issue 表单**带验收标准字段（AI 可直接领取实现）
+- **Dependabot** 周更 npm（minor/patch 合组）+ 月更 Actions，CI 守门
+- **`public/llms.txt`**：线上站点的 AI 可读索引（llmstxt.org）
 
 **验证纪律（有过翻车教训）：**
 - 永远用**退出码**判断成败：`cmd > /dev/null 2>&1; echo $?`。曾经把 `tsc` 输出管道给 `tail -1` 看尾行，真实的类型错误被吞掉、坏代码推上 CI 才被抓住。

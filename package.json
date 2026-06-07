@@ -1,7 +1,13 @@
 {
   "name": "receipthub",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "description": "Personal invoice/receipt manager PWA — local-first, GitHub-synced, Gemini AI extraction, NZ GST aware, bilingual. Zero backend.",
+  "homepage": "https://wilsonzheng.github.io/ReceiptHub/",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/WilsonZheng/ReceiptHub.git"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

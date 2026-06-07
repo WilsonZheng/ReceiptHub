@@ -1,0 +1,27 @@
+name: ✨ Feature request
+description: 新功能 / 改进（写清验收标准，AI agent 可直接领取实现）
+labels: [enhancement]
+body:
+  - type: textarea
+    id: want
+    attributes:
+      label: 想要什么
+      placeholder: 例：导出页支持按分类筛选后再下载 CSV
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 场景/动机
+      placeholder: 什么情况下需要它？现在怎么绕？
+  - type: textarea
+    id: accept
+    attributes:
+      label: 验收标准
+      description: 完成的客观判据（AI 实现后据此自检）
+      placeholder: |
+        - [ ] 导出页有分类多选
+        - [ ] CSV 只含所选分类
+        - [ ] e2e 覆盖
+    validations:
+      required: true

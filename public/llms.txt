@@ -1,0 +1,14 @@
+# ReceiptHub
+
+> Personal invoice/receipt manager PWA for a New Zealand user. Local-first (IndexedDB) with sync to a private GitHub repo via Contents API. AI field extraction via Gemini 2.5 Flash free tier, called directly from the browser. Bilingual (zh/en), dual theme, NZ GST aware (total × 3/23). Zero backend, $0/month.
+
+## Docs
+
+- [README](https://github.com/WilsonZheng/ReceiptHub/blob/main/README.md): features, setup, architecture
+- [CLAUDE.md](https://github.com/WilsonZheng/ReceiptHub/blob/main/CLAUDE.md): canonical engineering knowledge base — conventions, sync protocol, hard-won iOS PWA pitfalls
+- [AGENTS.md](https://github.com/WilsonZheng/ReceiptHub/blob/main/AGENTS.md): AI agent quickstart and hard rules
+
+## Source
+
+- [Repository](https://github.com/WilsonZheng/ReceiptHub)
+- App data lives in a separate private repository; this site contains no user data without the owner's access token.

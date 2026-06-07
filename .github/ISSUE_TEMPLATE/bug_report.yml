@@ -1,0 +1,39 @@
+name: 🐛 Bug report
+description: 功能异常 / 显示错误 / 崩溃（结构化字段便于 AI agent 直接修复）
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: 现象
+      description: 看到了什么？应该是什么？
+      placeholder: 例：统计页"本月"不包含今天录入的支出；应当实时计入
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开拍照页
+        2. …
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: 环境
+      placeholder: iPhone 13 Pro Max / iOS 18 / PWA standalone / 中文+深色
+  - type: textarea
+    id: shots
+    attributes:
+      label: 截图
+      description: 直接粘贴图片
+  - type: checkboxes
+    id: data
+    attributes:
+      label: 涉及面
+      options:
+        - label: 数据/同步相关（涉及 IndexedDB 或云端仓库）
+        - label: AI 识别相关（Gemini 提取结果）
+        - label: 仅 UI 显示
