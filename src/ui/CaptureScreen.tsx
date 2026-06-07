@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { processFile, type ProcessedFile } from '../lib/image';
 import { formatNZD, gstFromTotalCents, parseNZD } from '../lib/money';
-import { getConfig } from '../lib/settings';
+import { extractReceipt, ExtractError } from '../lib/extract';
+import { getAiKey, getConfig } from '../lib/settings';
 import { useLocale, useT } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
 import { saveReceipt } from '../data/repo';
@@ -26,6 +27,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState<ProcessedFile | null>(null);
+  const [extracting, setExtracting] = useState(false);
   const t = useT();
   const locale = useLocale();
 
@@ -103,6 +105,35 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
   }
 
   const categories = getConfig().categories[space][kind];
+  const aiKey = getAiKey();
+
+  // 用原图（非缩略图）送 Gemini：分辨率决定识别质量
+  async function handleExtract() {
+    if (!aiKey || !files.length || extracting) return;
+    setExtracting(true);
+    setError('');
+    try {
+      const r = await extractReceipt(
+        { blob: files[0].full, kind: files[0].kind },
+        { apiKey: aiKey, categories: getConfig().categories[space] },
+      );
+      if (r.kind) setKind(r.kind);
+      if (r.merchant) setMerchant(r.merchant);
+      if (r.date) setDate(r.date);
+      if (r.totalCents !== undefined) {
+        setTotal((r.totalCents / 100).toFixed(2));
+        setGstOverride(null);
+      }
+      // setKind 的 effect 会清空 category，这里用 setTimeout 排到其后
+      if (r.category) setTimeout(() => setCategory(r.category!), 0);
+    } catch (e) {
+      if (e instanceof ExtractError && e.reason === 'auth') setError(t('aiErrAuth'));
+      else if (e instanceof ExtractError && e.reason === 'rate_limit') setError(t('aiErrRate'));
+      else setError(t('aiErrOther'));
+    } finally {
+      setExtracting(false);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-3 py-2">
@@ -210,6 +241,22 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
           />
         </div>
       )}
+      {/* 有照片且配了 key 才出现：一键 AI 识别填表 */}
+      {files.length > 0 && aiKey && (
+        <button
+          onClick={() => void handleExtract()}
+          disabled={extracting}
+          className="rounded-xl py-2.5 text-sm font-bold disabled:opacity-60"
+          style={{
+            border: '1.5px solid var(--color-accent)',
+            color: 'var(--color-accent)',
+            background: 'transparent',
+          }}
+        >
+          {extracting ? t('aiExtracting') : t('aiExtract')}
+        </button>
+      )}
+
       {error && (
         <p className="text-xs" style={{ color: 'var(--color-danger)' }}>
           {error}

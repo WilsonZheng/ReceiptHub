@@ -192,6 +192,50 @@ test('dashboard shows monthly summary, trend, top lists and gst card', async ({ 
   await expect(page.getByText(/Net GST/)).toBeVisible();
 });
 
+test('ai extract: upload → button → form filled → save', async ({ page }) => {
+  // mock Gemini：返回结构化提取结果
+  await page.route('https://generativelanguage.googleapis.com/**', (route) =>
+    route.fulfill({
+      json: {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  text: JSON.stringify({
+                    merchant: 'Pak n Save',
+                    date: '2026-06-03',
+                    total: 57.8,
+                    kind: 'expense',
+                    category: 'Other',
+                  }),
+                },
+              ],
+            },
+          },
+        ],
+      },
+    }),
+  );
+  await page.evaluate(() => localStorage.setItem('rh.gemini', 'test-ai-key'));
+  await page.reload();
+
+  const chooserPromise = page.waitForEvent('filechooser');
+  await page.getByText('Upload from library').click();
+  await (
+    await chooserPromise
+  ).setFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: PNG });
+
+  await page.getByRole('button', { name: '✨ AI fill' }).click();
+  // 表单被自动填入
+  await expect(page.getByPlaceholder('Merchant')).toHaveValue('Pak n Save');
+  await expect(page.getByPlaceholder('Total (incl. GST)')).toHaveValue('57.80');
+  await expect(page.getByText('GST $7.54')).toBeVisible(); // 57.80 × 3/23
+  // 直接保存即可入库
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.getByText('Pak n Save')).toBeVisible();
+});
+
 test('custom localized date picker: sheet opens, pick a day, value updates', async ({ page }) => {
   await page.getByRole('button', { name: 'Date', exact: true }).click();
   // 抽屉里有月份导航和今天按钮

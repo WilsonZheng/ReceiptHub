@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { liveQuery } from 'dexie';
 import { db } from '../data/db';
-import { clearPat, getConfig, setConfig, DATA_REPO } from '../lib/settings';
+import { clearPat, getAiKey, getConfig, setAiKey, setConfig, DATA_REPO } from '../lib/settings';
 import { setLocale, useLocale, useT, type Locale } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
 import { setTheme, useTheme, type Theme } from '../lib/theme';
@@ -81,6 +81,8 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
   const { status, pending } = useSyncStatus();
   const [counts, setCounts] = useState({ receipts: 0, photos: 0 });
   const [config, setLocalConfig] = useState(getConfig());
+  const [aiKey, setAiKeyLocal] = useState(getAiKey() ?? '');
+  const [aiSaved, setAiSaved] = useState(false);
   const locale = useLocale();
   const theme = useTheme();
   const t = useT();
@@ -162,6 +164,32 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
               />
             ))}
           </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
+        <h3 className="font-bold">{t('aiTitle')}</h3>
+        <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+          {t('aiHint')}
+        </p>
+        <div className="mt-2 flex gap-2">
+          <input
+            type="password"
+            value={aiKey}
+            onChange={(e) => setAiKeyLocal(e.target.value)}
+            placeholder={t('aiKeyPlaceholder')}
+            className="field"
+          />
+          <button
+            onClick={() => {
+              setAiKey(aiKey);
+              setAiSaved(true);
+              setTimeout(() => setAiSaved(false), 1500);
+            }}
+            className="btn-secondary whitespace-nowrap"
+          >
+            {aiSaved ? '✓' : t('saveKey')}
+          </button>
         </div>
       </section>
 
