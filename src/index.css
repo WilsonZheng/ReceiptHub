@@ -23,9 +23,12 @@ body {
   font-family: var(--font-display);
 }
 
-/* 应用高度：JS 注入的精确像素值（修 iOS standalone 启动时 dvh 算错的 bug），dvh 兜底 */
-.h-app {
-  height: var(--app-h, 100dvh);
+/* 应用壳：fixed + inset:0 把上下边直接钉在屏幕边缘。
+   iOS standalone 启动时 dvh 和 innerHeight 都可能是过期值——
+   唯一可靠的是不依赖任何高度数值，让上下锚点决定布局。 */
+.app-shell {
+  position: fixed;
+  inset: 0;
 }
 
 /* 次级按钮：链接样文字在移动端太突兀，统一用它（components 层，可被工具类覆盖） */

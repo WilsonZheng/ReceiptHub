@@ -55,7 +55,7 @@ export default function App() {
 
   return (
     <div
-      className="h-app mx-auto flex max-w-lg flex-col"
+      className="app-shell mx-auto flex max-w-lg flex-col"
       style={{
         // 刘海/灵动岛安全区：PWA 全屏模式下 header 不被状态栏压住
         paddingTop: 'env(safe-area-inset-top)',
