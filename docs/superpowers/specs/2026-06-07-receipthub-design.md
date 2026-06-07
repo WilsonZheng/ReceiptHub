@@ -112,6 +112,7 @@ interface Receipt {
 - 三种录入来源，两个入口：
   1. **拍照**（主按钮）：`<input type="file" accept="image/*" capture="environment">`——`capture` 属性让 iOS 直接开相机
   2. **相册 / 文件上传**（次按钮）：`<input type="file" accept="image/*,application/pdf" multiple>`——不带 `capture`，iOS 弹出原生选择单（照片图库 / 拍照 / 浏览文件），支持多选补传历史截图和邮件里存的 PDF invoice
+  3. **桌面增强**：同一个次按钮在桌面打开系统文件选择器；此外 Capture 屏整体作为拖拽落区（drag & drop 图片/PDF），并监听 `paste` 事件支持 ⌘V 直接粘贴截图——邮件里的 invoice 截个图粘进来就能录
 - 压缩：canvas 缩到最长边 1600px，优先 `toBlob('image/webp', 0.8)`，Safari 不支持 WebP 编码时回退 JPEG 0.8，目标 ≤300KB
 - 同时生成 300px 缩略图存 IndexedDB，列表只用缩略图
 - PDF 不压缩原样存，>20MB 拒绝并提示
@@ -155,7 +156,7 @@ interface Receipt {
 
 顶部全局 Personal | Company 分段切换，影响录入默认空间和列表过滤。
 
-1. **Capture（默认屏）**：大拍照按钮 + 次级"从相册/文件上传"按钮（支持多选、支持 PDF）→ 照片预览（可加拍/加传）→ 五字段表单（日期默认今天；商家输入框带历史自动补全；金额数字键盘；分类 chips 单选；备注可选）→ 保存。公司空间下金额输入时实时显示 GST 金额。目标：一张票 10 秒内录完。
+1. **Capture（默认屏）**：大拍照按钮 + 次级"从相册/文件上传"按钮（支持多选、支持 PDF）→ 照片预览（可加拍/加传）→ 五字段表单。桌面端额外支持拖拽文件进页面和 ⌘V 粘贴截图（日期默认今天；商家输入框带历史自动补全；金额数字键盘；分类 chips 单选；备注可选）→ 保存。公司空间下金额输入时实时显示 GST 金额。目标：一张票 10 秒内录完。
 2. **Receipts**：按月分组的列表（缩略图 + 商家 + 日期 + 金额），顶部模糊搜索框（minisearch 索引商家/备注/分类/金额字符串），空间过滤继承全局切换（可切 All）。点击进详情：大图查看、编辑全部字段、删除。
 3. **Export**：日期范围选择（快捷项：本月 / 上月 / 最近两月 / 自定义）→ 显示汇总卡（票据数、含税总额、GST 总额、净额，按分类小计）→ 下载 CSV。CSV 列：`Date, Merchant, Category, Net (NZD), GST (NZD), Total (NZD), Note, ReceiptID`。金额输出为带两位小数的元。
 4. **Settings**：PAT 管理（更换/清除）、分类管理、同步状态详情、存储统计（本地缓存大小/云端照片数）、数据仓库链接。
