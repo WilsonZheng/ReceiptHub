@@ -80,14 +80,16 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
           style={{ background: 'var(--color-surface)' }}
         >
           {p.kind === 'pdf' ? (
-            <a
-              className="block p-4 text-center underline"
-              href={URL.createObjectURL(p.full)}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {t('openPdf')}
-            </a>
+            <div className="flex justify-center p-4">
+              <a
+                className="btn-secondary inline-block"
+                href={URL.createObjectURL(p.full)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                📄 {t('openPdf')} ↗
+              </a>
+            </div>
           ) : (
             <img src={URL.createObjectURL(p.full)} className="w-full" alt={receipt.merchant} />
           )}
