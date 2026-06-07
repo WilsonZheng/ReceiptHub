@@ -208,6 +208,7 @@ test('ai extract: upload → button → form filled → save', async ({ page }) 
                     total: 57.8,
                     kind: 'expense',
                     category: 'Other',
+                    note: 'Milk 2L ×2, bread · EFTPOS',
                   }),
                 },
               ],
@@ -230,6 +231,7 @@ test('ai extract: upload → button → form filled → save', async ({ page }) 
   // 表单被自动填入
   await expect(page.getByPlaceholder('Merchant')).toHaveValue('Pak n Save');
   await expect(page.getByPlaceholder('Total (incl. GST)')).toHaveValue('57.80');
+  await expect(page.getByPlaceholder('Note (optional)')).toHaveValue('Milk 2L ×2, bread · EFTPOS');
   await expect(page.getByText('GST $7.54')).toBeVisible(); // 57.80 × 3/23
   // 直接保存即可入库
   await page.getByRole('button', { name: 'Save', exact: true }).click();

@@ -2,6 +2,7 @@
 // key 走 x-goog-api-key 请求头（不进 URL，避免日志泄露）。
 // 图片和 PDF 走同一个 inline_data 通道——这是选 Gemini 而非 GitHub Models 的核心原因。
 import { toBase64 } from '../sync/github';
+import type { Locale } from './i18n';
 import type { Kind, PhotoKind } from '../data/types';
 
 const MODEL = 'gemini-2.5-flash';
@@ -22,11 +23,13 @@ export interface Extraction {
   totalCents?: number;
   kind?: Kind;
   category?: string;
+  note?: string;
 }
 
 interface ExtractOpts {
   apiKey: string;
   categories: Record<Kind, string[]>;
+  locale: Locale;
 }
 
 const RESPONSE_SCHEMA = {
@@ -37,10 +40,12 @@ const RESPONSE_SCHEMA = {
     total: { type: 'NUMBER', description: 'total amount incl. GST in dollars' },
     kind: { type: 'STRING', enum: ['expense', 'income'] },
     category: { type: 'STRING' },
+    note: { type: 'STRING' },
   },
 };
 
-function buildPrompt(categories: Record<Kind, string[]>): string {
+function buildPrompt(categories: Record<Kind, string[]>, locale: Locale): string {
+  const noteLang = locale === 'zh' ? 'Chinese' : 'English';
   return [
     'Extract structured data from this receipt or invoice (New Zealand context).',
     'Rules:',
@@ -49,6 +54,7 @@ function buildPrompt(categories: Record<Kind, string[]>): string {
     '- total: the final total amount including GST, in dollars.',
     "- kind: 'expense' for receipts/bills the user paid; 'income' only if this is clearly an invoice the user issued to a client. Default 'expense'.",
     `- category: pick the single best match. For expense choose from: ${categories.expense.join(', ')}. For income choose from: ${categories.income.join(', ')}.`,
+    `- note: a short useful summary in ${noteLang} (keep original product names): main items/services with quantities, invoice number if present, payment method if visible. Max 120 characters. Separate parts with " · ".`,
     'Omit any field you cannot determine confidently.',
   ].join('\n');
 }
@@ -68,7 +74,7 @@ export async function extractReceipt(
           {
             parts: [
               { inline_data: { mime_type: mime, data: await toBase64(file.blob) } },
-              { text: buildPrompt(opts.categories) },
+              { text: buildPrompt(opts.categories, opts.locale) },
             ],
           },
         ],
@@ -93,6 +99,7 @@ export async function extractReceipt(
     total?: number;
     kind?: string;
     category?: string;
+    note?: string;
   };
   try {
     const json = (await res.json()) as {
@@ -115,5 +122,6 @@ export async function extractReceipt(
   if (raw.category && opts.categories[kind].includes(raw.category)) {
     out.category = raw.category;
   }
+  if (raw.note?.trim()) out.note = raw.note.trim().slice(0, 200);
   return out;
 }

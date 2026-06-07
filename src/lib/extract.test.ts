@@ -4,6 +4,7 @@ import { extractReceipt, ExtractError } from './extract';
 afterEach(() => vi.restoreAllMocks());
 
 const CATS = { expense: ['Fuel', 'Equipment', 'Other'], income: ['Sales', 'Other'] };
+const OPTS = { apiKey: 'k', categories: CATS, locale: 'en' as const };
 const file = { blob: new Blob(['x'], { type: 'image/webp' }), kind: 'webp' as const };
 
 const geminiReply = (obj: unknown) =>
@@ -13,7 +14,7 @@ const geminiReply = (obj: unknown) =>
   );
 
 describe('extractReceipt', () => {
-  it('maps gemini json to form fields (dollars → cents)', async () => {
+  it('maps gemini json to form fields (dollars → cents), incl note', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       geminiReply({
         merchant: 'Bunnings Warehouse',
@@ -21,21 +22,35 @@ describe('extractReceipt', () => {
         total: 184.5,
         kind: 'expense',
         category: 'Equipment',
+        note: 'Pine timber 2.4m ×6, screws box · inv #INV-1042 · EFTPOS',
       }),
     );
-    const r = await extractReceipt(file, { apiKey: 'k', categories: CATS });
+    const r = await extractReceipt(file, OPTS);
     expect(r).toEqual({
       merchant: 'Bunnings Warehouse',
       date: '2026-06-05',
       totalCents: 18450,
       kind: 'expense',
       category: 'Equipment',
+      note: 'Pine timber 2.4m ×6, screws box · inv #INV-1042 · EFTPOS',
     });
+  });
+
+  it('truncates absurdly long notes', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(geminiReply({ note: 'x'.repeat(500) }));
+    const r = await extractReceipt(file, OPTS);
+    expect(r.note).toHaveLength(200);
+  });
+
+  it('prompt asks for note in app language', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(geminiReply({}));
+    await extractReceipt(file, { ...OPTS, locale: 'zh' });
+    expect(String(spy.mock.calls[0][1]?.body)).toContain('Chinese');
   });
 
   it('sends inline data + json schema to gemini', async () => {
     const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(geminiReply({}));
-    await extractReceipt(file, { apiKey: 'secret-key', categories: CATS });
+    await extractReceipt(file, { ...OPTS, apiKey: 'secret-key' });
     const [url, init] = spy.mock.calls[0];
     expect(String(url)).toContain('generativelanguage.googleapis.com');
     expect(String(url)).not.toContain('secret-key'); // key 走 header 不进 URL
@@ -51,7 +66,7 @@ describe('extractReceipt', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       geminiReply({ merchant: 'X', date: 'last tuesday', total: 10, category: 'Made Up' }),
     );
-    const r = await extractReceipt(file, { apiKey: 'k', categories: CATS });
+    const r = await extractReceipt(file, OPTS);
     expect(r.category).toBeUndefined();
     expect(r.date).toBeUndefined();
     expect(r.totalCents).toBe(1000);
@@ -61,24 +76,21 @@ describe('extractReceipt', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       geminiReply({ kind: 'income', category: 'Sales', total: 230 }),
     );
-    const r = await extractReceipt(file, { apiKey: 'k', categories: CATS });
+    const r = await extractReceipt(file, OPTS);
     expect(r.kind).toBe('income');
     expect(r.category).toBe('Sales');
   });
 
   it('pdf uses application/pdf mime', async () => {
     const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(geminiReply({}));
-    await extractReceipt(
-      { blob: new Blob(['p'], { type: 'application/pdf' }), kind: 'pdf' },
-      { apiKey: 'k', categories: CATS },
-    );
+    await extractReceipt({ blob: new Blob(['p'], { type: 'application/pdf' }), kind: 'pdf' }, OPTS);
     const body = JSON.parse(String(spy.mock.calls[0][1]?.body));
     expect(body.contents[0].parts[0].inline_data.mime_type).toBe('application/pdf');
   });
 
   it('throws typed error on 429 rate limit', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 429 }));
-    await expect(extractReceipt(file, { apiKey: 'k', categories: CATS })).rejects.toMatchObject({
+    await expect(extractReceipt(file, OPTS)).rejects.toMatchObject({
       name: 'ExtractError',
       reason: 'rate_limit',
     });
@@ -87,7 +99,7 @@ describe('extractReceipt', () => {
 
   it('throws typed error on bad key', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 400 }));
-    await expect(extractReceipt(file, { apiKey: 'bad', categories: CATS })).rejects.toMatchObject({
+    await expect(extractReceipt(file, { ...OPTS, apiKey: 'bad' })).rejects.toMatchObject({
       reason: 'auth',
     });
   });

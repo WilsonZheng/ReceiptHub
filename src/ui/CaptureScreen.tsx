@@ -115,7 +115,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
     try {
       const r = await extractReceipt(
         { blob: files[0].full, kind: files[0].kind },
-        { apiKey: aiKey, categories: getConfig().categories[space] },
+        { apiKey: aiKey, categories: getConfig().categories[space], locale },
       );
       if (r.kind) setKind(r.kind);
       if (r.merchant) setMerchant(r.merchant);
@@ -124,6 +124,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         setTotal((r.totalCents / 100).toFixed(2));
         setGstOverride(null);
       }
+      if (r.note) setNote(r.note);
       // setKind 的 effect 会清空 category，这里用 setTimeout 排到其后
       if (r.category) setTimeout(() => setCategory(r.category!), 0);
     } catch (e) {
