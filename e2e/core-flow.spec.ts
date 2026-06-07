@@ -163,8 +163,15 @@ test('income entry: own categories, + in list, gst nets off in export', async ({
   await page.getByRole('button', { name: 'Sales', exact: true }).click();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
 
-  // 列表里收入带 + 号
+  // 收入绿色 +，支出 −
   await expect(page.getByText('+$230.00')).toBeVisible();
+  await expect(page.getByText('-$115.00')).toBeVisible();
+  // 收支筛选
+  await page.getByRole('button', { name: 'Income', exact: true }).click();
+  await expect(page.getByText('Client Invoice')).toBeVisible();
+  await expect(page.getByText('Office Rent')).not.toBeVisible();
+  await page.getByRole('button', { name: 'All', exact: true }).click();
+  await expect(page.getByText('Office Rent')).toBeVisible();
 
   // Export：进销项相抵，净额 = 30 - 15 = 15
   await openMore(page, 'Export');
@@ -314,8 +321,5 @@ test('space toggle separates company and personal', async ({ page }) => {
   await page.getByRole('button', { name: 'Capture' }).click();
   await addReceipt(page, 'Personal Shop', '50.00', 'Other');
   await expect(page.getByText('Personal Shop')).toBeVisible();
-  await expect(page.getByText('Company Store')).not.toBeVisible();
-  // all 范围两者都显示
-  await page.getByRole('button', { name: 'All', exact: true }).click();
-  await expect(page.getByText('Company Store')).toBeVisible();
+  await expect(page.getByText('Company Store')).not.toBeVisible(); // 列表严格跟随右上角空间
 });

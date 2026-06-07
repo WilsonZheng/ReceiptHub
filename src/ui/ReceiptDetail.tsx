@@ -97,7 +97,14 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
         <>
           <div className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
             <p className="text-lg font-bold">{receipt.merchant}</p>
-            <p className="text-2xl font-bold" style={{ fontFamily: 'var(--font-numeric)' }}>
+            <p
+              className="text-2xl font-bold"
+              style={{
+                fontFamily: 'var(--font-numeric)',
+                color: kindOf(receipt) === 'income' ? 'var(--color-accent)' : 'var(--color-ink)',
+              }}
+            >
+              {kindOf(receipt) === 'income' ? '+' : '-'}
               {formatNZD(receipt.totalCents)}
             </p>
             <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>

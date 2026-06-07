@@ -6,18 +6,18 @@ import { formatNZD } from '../lib/money';
 import { useLocale, useT } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
 import { formatDate, formatMonth } from '../lib/dates';
-import { kindOf, type Receipt, type Space } from '../data/types';
+import { kindOf, type Kind, type Receipt, type Space } from '../data/types';
 import { ReceiptDetail } from './ReceiptDetail';
 
 export function ReceiptsScreen({ space }: { space: Space }) {
   const [all, setAll] = useState<Receipt[]>([]);
   const [query, setQuery] = useState('');
-  const [scope, setScope] = useState<Space | 'all'>(space);
+  // 空间由右上角全局开关决定；列表内只筛收支维度
+  const [kindFilter, setKindFilter] = useState<Kind | 'all'>('all');
   const [openId, setOpenId] = useState<string | null>(null);
   const t = useT();
   const locale = useLocale();
 
-  useEffect(() => setScope(space), [space]);
   useEffect(() => {
     const sub = liveQuery(() => db.receipts.toArray()).subscribe({
       next: (rs) => setAll(rs.filter((r) => !r.deleted).sort((a, b) => (a.date < b.date ? 1 : -1))),
@@ -27,11 +27,12 @@ export function ReceiptsScreen({ space }: { space: Space }) {
 
   const index = useMemo(() => buildIndex(all), [all]);
   const visible = useMemo(() => {
-    const scoped = scope === 'all' ? all : all.filter((r) => r.space === scope);
+    let scoped = all.filter((r) => r.space === space);
+    if (kindFilter !== 'all') scoped = scoped.filter((r) => kindOf(r) === kindFilter);
     if (!query.trim()) return scoped;
     const ids = new Set(searchReceipts(index, query));
     return scoped.filter((r) => ids.has(r.id));
-  }, [all, scope, query, index]);
+  }, [all, space, kindFilter, query, index]);
 
   const byMonth = useMemo(() => {
     const groups = new Map<string, Receipt[]>();
@@ -52,15 +53,19 @@ export function ReceiptsScreen({ space }: { space: Space }) {
         onChange={(e) => setQuery(e.target.value)}
         className="field"
       />
-      <div className="flex gap-3 text-xs font-semibold">
-        {([space, 'all'] as const).map((s) => (
+      <div className="flex gap-1.5 text-xs font-semibold">
+        {(['all', 'expense', 'income'] as const).map((k) => (
           <button
-            key={s}
-            onClick={() => setScope(s)}
-            className="underline-offset-4"
-            style={{ color: scope === s ? 'var(--color-accent)' : 'var(--color-ink-muted)' }}
+            key={k}
+            onClick={() => setKindFilter(k)}
+            className="rounded-full px-3 py-1"
+            style={
+              kindFilter === k
+                ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
+                : { background: 'var(--color-surface-2)', color: 'var(--color-ink-muted)' }
+            }
           >
-            {t(s)}
+            {t(k === 'all' ? 'allTime' : k)}
           </button>
         ))}
       </div>
@@ -95,13 +100,17 @@ export function ReceiptsScreen({ space }: { space: Space }) {
                 )}
                 <span className="block text-[10px]" style={{ color: 'var(--color-ink-muted)' }}>
                   {formatDate(r.date, locale)} · {categoryLabel(r.category, locale)}
-                  {kindOf(r) === 'income' ? ` · ${t('income')}` : ''}
-                  {r.space === 'personal' ? t('personalSuffix') : ''}
                 </span>
               </span>
               <span className="shrink-0 text-right" style={{ fontFamily: 'var(--font-numeric)' }}>
-                <span className="block text-sm font-bold" style={{ color: 'var(--color-accent)' }}>
-                  {kindOf(r) === 'income' ? '+' : ''}
+                {/* 收入绿色带 +，支出默认色带 −：一眼区分方向 */}
+                <span
+                  className="block text-sm font-bold"
+                  style={{
+                    color: kindOf(r) === 'income' ? 'var(--color-accent)' : 'var(--color-ink)',
+                  }}
+                >
+                  {kindOf(r) === 'income' ? '+' : '-'}
                   {formatNZD(r.totalCents)}
                 </span>
                 {r.space === 'company' && (
