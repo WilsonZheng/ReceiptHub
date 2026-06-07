@@ -25,7 +25,7 @@ export default defineConfig({
     }),
   ],
   test: {
-    environment: 'jsdom',
+    environment: 'node', // 纯逻辑测试用 Node 原生 Blob/fetch；UI 验证走 Playwright
     setupFiles: ['./src/test-setup.ts'],
     exclude: ['e2e/**', 'node_modules/**'],
   },
