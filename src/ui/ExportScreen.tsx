@@ -4,6 +4,7 @@ import { receiptsToCsv, summarize } from '../lib/csv';
 import { formatNZD } from '../lib/money';
 import { useLocale, useT, type MsgKey } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
+import { DateField } from './components/DateField';
 import type { Receipt, Space } from '../data/types';
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -66,19 +67,9 @@ export function ExportScreen({ space }: { space: Space }) {
           </button>
         ))}
       </div>
-      <div className="flex gap-2">
-        <input
-          type="date"
-          value={from}
-          onChange={(e) => setRange({ from: e.target.value, to })}
-          className="field"
-        />
-        <input
-          type="date"
-          value={to}
-          onChange={(e) => setRange({ from, to: e.target.value })}
-          className="field"
-        />
+      <div className="grid grid-cols-2 gap-2">
+        <DateField value={from} onChange={(v) => setRange({ from: v, to })} />
+        <DateField value={to} onChange={(v) => setRange({ from, to: v })} />
       </div>
       <div className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
         <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>

@@ -116,6 +116,16 @@ a:active,
   }
 }
 
+/* 底部抽屉：上滑进场 */
+.sheet-in {
+  animation: sheet-in 0.32s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
 /* 顶部横幅：下落进场 */
 .drop-in {
   animation: drop-in 0.3s cubic-bezier(0.32, 0.72, 0, 1) both;

@@ -37,6 +37,8 @@ const en = {
   note: 'Note',
   noGst: 'No GST',
   gstAuto: 'GST auto',
+  date: 'Date',
+  today: 'Today',
   save: 'Save',
   removeFile: 'Remove file',
   // receipts
@@ -121,6 +123,8 @@ const zh: Record<MsgKey, string> = {
   note: '备注',
   noGst: '无 GST',
   gstAuto: 'GST 自动',
+  date: '日期',
+  today: '今天',
   save: '保存',
   removeFile: '移除文件',
   searchPlaceholder: '⌕ 搜索商家、备注、金额…',

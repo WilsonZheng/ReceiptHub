@@ -6,6 +6,7 @@ import { useLocale, useT } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
 import { saveReceipt } from '../data/repo';
 import { db } from '../data/db';
+import { DateField } from './components/DateField';
 import type { Kind, Space } from '../data/types';
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -215,7 +216,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         </p>
       )}
 
-      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field" />
+      <DateField value={date} onChange={setDate} />
       <input
         list="merchants"
         placeholder={t('merchant')}

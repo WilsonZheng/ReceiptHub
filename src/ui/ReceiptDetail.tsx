@@ -6,6 +6,7 @@ import { getConfig } from '../lib/settings';
 import { useLocale, useT } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
 import { formatDate } from '../lib/dates';
+import { DateField } from './components/DateField';
 import { kindOf, type Kind, type Receipt } from '../data/types';
 
 export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void }) {
@@ -118,13 +119,13 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
         </>
       ) : (
         <>
+          <DateField value={date} onChange={setDate} />
           <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
+            value={merchant}
+            onChange={(e) => setMerchant(e.target.value)}
+            placeholder={t('merchant')}
             className="field"
           />
-          <input value={merchant} onChange={(e) => setMerchant(e.target.value)} className="field" />
           <input
             inputMode="decimal"
             value={total}

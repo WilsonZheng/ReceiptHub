@@ -96,7 +96,7 @@ test('detail edit and soft delete', async ({ page }) => {
   await page.getByText('Z Energy').click();
   await expect(page.getByText('GST $12.04')).toBeVisible();
   await page.getByRole('button', { name: 'Edit' }).click();
-  await page.getByRole('textbox').nth(1).fill('Z Energy Penrose');
+  await page.getByPlaceholder('Merchant').fill('Z Energy Penrose');
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByText('Z Energy Penrose')).toBeVisible();
 
@@ -190,6 +190,15 @@ test('dashboard shows monthly summary, trend, top lists and gst card', async ({ 
   await expect(page.getByText('Mitre 10')).toBeVisible(); // 商家排行
   await expect(page.getByText('GST · last 2 months')).toBeVisible();
   await expect(page.getByText(/Net GST/)).toBeVisible();
+});
+
+test('custom localized date picker: sheet opens, pick a day, value updates', async ({ page }) => {
+  await page.getByRole('button', { name: 'Date', exact: true }).click();
+  // 抽屉里有月份导航和今天按钮
+  await expect(page.getByRole('button', { name: 'Today', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: '15', exact: true }).first().click();
+  await expect(page.getByRole('button', { name: 'Today' })).not.toBeVisible(); // 选中即关闭
+  await expect(page.getByRole('button', { name: 'Date', exact: true })).toContainText('15');
 });
 
 test('capture thumbnail opens fullscreen preview', async ({ page }) => {
