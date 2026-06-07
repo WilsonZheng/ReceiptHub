@@ -5,7 +5,7 @@ import { getConfig } from '../lib/settings';
 import { useT } from '../lib/i18n';
 import { saveReceipt } from '../data/repo';
 import { db } from '../data/db';
-import type { Space } from '../data/types';
+import type { Kind, Space } from '../data/types';
 
 const today = () => new Date().toISOString().slice(0, 10);
 
@@ -17,6 +17,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
   const [merchant, setMerchant] = useState('');
   const [total, setTotal] = useState('');
   const [gstOverride, setGstOverride] = useState<number | null>(null);
+  const [kind, setKind] = useState<Kind>('expense');
   const [category, setCategory] = useState('');
   const [note, setNote] = useState('');
   const [merchants, setMerchants] = useState<string[]>([]);
@@ -32,6 +33,9 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       .toArray()
       .then((rs) => setMerchants([...new Set(rs.map((r) => r.merchant))]));
   }, []);
+
+  // 空间或收支类型切换时，已选分类可能不在新列表里——重置
+  useEffect(() => setCategory(''), [space, kind]);
 
   // 桌面: 拖拽 + ⌘V 粘贴
   useEffect(() => {
@@ -72,6 +76,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
     try {
       await saveReceipt({
         space,
+        kind,
         date,
         merchant,
         totalCents,
@@ -93,7 +98,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
     }
   }
 
-  const categories = getConfig().categories[space];
+  const categories = getConfig().categories[space][kind];
 
   return (
     <div className="flex flex-col gap-3 py-2">
@@ -135,6 +140,23 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         {t('uploadLabel')}
         <span className="hidden sm:inline">{t('uploadDesktopHint')}</span>
       </button>
+
+      <div className="flex gap-2">
+        {(['expense', 'income'] as const).map((k) => (
+          <button
+            key={k}
+            onClick={() => setKind(k)}
+            className="rounded-full px-3 py-1.5 text-xs font-semibold"
+            style={
+              kind === k
+                ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
+                : { background: 'var(--color-surface-2)', color: 'var(--color-ink-muted)' }
+            }
+          >
+            {t(k)}
+          </button>
+        ))}
+      </div>
 
       {files.length > 0 && (
         <div className="flex gap-2 overflow-x-auto">

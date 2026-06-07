@@ -1,4 +1,4 @@
-import { DEFAULT_CONFIG, type AppConfig } from '../data/types';
+import { DEFAULT_CONFIG, type AppConfig, type Space } from '../data/types';
 
 const PAT_KEY = 'rh.pat';
 const CONFIG_KEY = 'rh.config';
@@ -11,7 +11,27 @@ export const clearPat = (): void => localStorage.removeItem(PAT_KEY);
 
 export function getConfig(): AppConfig {
   const raw = localStorage.getItem(CONFIG_KEY);
-  return raw ? (JSON.parse(raw) as AppConfig) : DEFAULT_CONFIG;
+  if (!raw) return DEFAULT_CONFIG;
+  const parsed = JSON.parse(raw) as AppConfig | { categories: Record<Space, string[]> };
+  // 旧版每空间单列表 → 迁移为 支出沿用旧列表 + 收入用默认列表
+  if (Array.isArray(parsed.categories.company)) {
+    const legacy = parsed as { categories: Record<Space, string[]> };
+    const migrated: AppConfig = {
+      categories: {
+        company: {
+          expense: legacy.categories.company,
+          income: DEFAULT_CONFIG.categories.company.income,
+        },
+        personal: {
+          expense: legacy.categories.personal,
+          income: DEFAULT_CONFIG.categories.personal.income,
+        },
+      },
+    };
+    setConfig(migrated);
+    return migrated;
+  }
+  return parsed as AppConfig;
 }
 export function setConfig(c: AppConfig): void {
   localStorage.setItem(CONFIG_KEY, JSON.stringify(c));

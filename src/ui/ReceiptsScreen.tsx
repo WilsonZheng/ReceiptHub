@@ -4,7 +4,7 @@ import { db } from '../data/db';
 import { buildIndex, searchReceipts } from '../data/search';
 import { formatNZD } from '../lib/money';
 import { useT } from '../lib/i18n';
-import type { Receipt, Space } from '../data/types';
+import { kindOf, type Receipt, type Space } from '../data/types';
 import { ReceiptDetail } from './ReceiptDetail';
 
 export function ReceiptsScreen({ space }: { space: Space }) {
@@ -83,11 +83,13 @@ export function ReceiptsScreen({ space }: { space: Space }) {
                 <span className="block text-sm font-semibold">{r.merchant}</span>
                 <span className="block text-[10px]" style={{ color: 'var(--color-ink-muted)' }}>
                   {r.date} · {r.category}
+                  {kindOf(r) === 'income' ? ` · ${t('income')}` : ''}
                   {r.space === 'personal' ? t('personalSuffix') : ''}
                 </span>
               </span>
               <span className="text-right" style={{ fontFamily: 'var(--font-numeric)' }}>
                 <span className="block text-sm font-bold" style={{ color: 'var(--color-accent)' }}>
+                  {kindOf(r) === 'income' ? '+' : ''}
                   {formatNZD(r.totalCents)}
                 </span>
                 {r.space === 'company' && (

@@ -10,6 +10,7 @@ beforeEach(async () => {
 
 const input = {
   space: 'company' as const,
+  kind: 'expense' as const,
   date: '2026-06-07',
   merchant: 'Bunnings',
   totalCents: 18450,

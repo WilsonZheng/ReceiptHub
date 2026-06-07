@@ -80,28 +80,58 @@ export function ExportScreen({ space }: { space: Space }) {
       </div>
       <div className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
         <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-          {s.count} {t('receiptsUnit')} · {t(space)}
+          {from} → {to} · {t(space)}
         </p>
-        <p className="text-xl font-bold" style={{ fontFamily: 'var(--font-numeric)' }}>
-          {formatNZD(s.totalCents)}
-        </p>
+        <div className="mt-1 flex items-baseline justify-between">
+          <span className="text-sm">
+            {t('expense')} ({s.expense.count})
+          </span>
+          <span className="text-xl font-bold" style={{ fontFamily: 'var(--font-numeric)' }}>
+            {formatNZD(s.expense.totalCents)}
+          </span>
+        </div>
+        <div className="flex items-baseline justify-between">
+          <span className="text-sm">
+            {t('income')} ({s.income.count})
+          </span>
+          <span
+            className="text-xl font-bold"
+            style={{ fontFamily: 'var(--font-numeric)', color: 'var(--color-accent)' }}
+          >
+            +{formatNZD(s.income.totalCents)}
+          </span>
+        </div>
         {space === 'company' && (
-          <p className="text-sm" style={{ color: 'var(--color-accent)' }}>
-            GST {formatNZD(s.gstCents)} · {t('net')} {formatNZD(s.netCents)}
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-accent)' }}>
+            {t('gstPaid')} {formatNZD(s.expense.gstCents)} · {t('gstCollected')}{' '}
+            {formatNZD(s.income.gstCents)} · {t('netGst')}{' '}
+            {formatNZD(s.income.gstCents - s.expense.gstCents)}
           </p>
         )}
-        <ul className="mt-2 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-          {Object.entries(s.byCategory).map(([c, cents]) => (
-            <li key={c} className="flex justify-between">
-              <span>{c}</span>
-              <span style={{ fontFamily: 'var(--font-numeric)' }}>{formatNZD(cents)}</span>
-            </li>
-          ))}
-        </ul>
+        {(
+          [
+            ['expense', s.expense],
+            ['income', s.income],
+          ] as const
+        ).map(([k, side]) =>
+          side.count > 0 ? (
+            <ul key={k} className="mt-2 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+              {Object.entries(side.byCategory).map(([c, cents]) => (
+                <li key={c} className="flex justify-between">
+                  <span>
+                    {c}
+                    {k === 'income' ? ` · ${t('income')}` : ''}
+                  </span>
+                  <span style={{ fontFamily: 'var(--font-numeric)' }}>{formatNZD(cents)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null,
+        )}
       </div>
       <button
         onClick={download}
-        disabled={s.count === 0}
+        disabled={s.expense.count + s.income.count === 0}
         className="rounded-xl py-3 font-bold disabled:opacity-40"
         style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
       >

@@ -79,7 +79,7 @@ test('capture → list → fuzzy search → export csv', async ({ page }) => {
 
   // 导出
   await page.getByRole('button', { name: 'Export' }).click();
-  await expect(page.getByText('1 receipts · company')).toBeVisible();
+  await expect(page.getByText('Expense (1)')).toBeVisible();
   const downloadPromise = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Download CSV' }).click();
   expect((await downloadPromise).suggestedFilename()).toContain('receipthub-company');
@@ -134,6 +134,42 @@ test('theme and language switching persists', async ({ page }) => {
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark'); // 主题持久化
   await expect(page.getByRole('button', { name: '设置' })).toBeVisible(); // 语言持久化
+});
+
+test('income entry: own categories, + in list, gst nets off in export', async ({ page }) => {
+  await addReceipt(page, 'Office Rent', '115.00', 'Other'); // 支出 GST 15.00
+  await page.getByRole('button', { name: 'Capture' }).click();
+  await page.getByRole('button', { name: 'Income', exact: true }).click();
+  // 收入分类替换了支出分类
+  await expect(page.getByRole('button', { name: 'Sales', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Fuel', exact: true })).not.toBeVisible();
+  const chooserPromise = page.waitForEvent('filechooser');
+  await page.getByText('Upload from library').click();
+  await (
+    await chooserPromise
+  ).setFiles({ name: 'invoice.png', mimeType: 'image/png', buffer: PNG });
+  await page.getByPlaceholder('Merchant').fill('Client Invoice');
+  await page.getByPlaceholder('Total (incl. GST)').fill('230.00'); // 收入 GST 30.00
+  await page.getByRole('button', { name: 'Sales', exact: true }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+  // 列表里收入带 + 号
+  await expect(page.getByText('+$230.00')).toBeVisible();
+
+  // Export：进销项相抵，净额 = 30 - 15 = 15
+  await page.getByRole('button', { name: 'Export' }).click();
+  await expect(page.getByText('Income (1)')).toBeVisible();
+  await expect(page.getByText(/Net GST \$15\.00/)).toBeVisible();
+
+  // CSV 含 Kind 列
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download CSV' }).click();
+  const path = await (await downloadPromise).path();
+  const fs = await import('node:fs');
+  const csv = fs.readFileSync(path, 'utf8');
+  expect(csv).toContain('Date,Kind,');
+  expect(csv).toContain(',Income,Client Invoice,Sales,200.00,30.00,230.00,');
+  expect(csv).toContain(',Expense,Office Rent,Other,100.00,15.00,115.00,');
 });
 
 test('space toggle separates company and personal', async ({ page }) => {

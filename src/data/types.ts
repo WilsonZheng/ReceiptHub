@@ -1,4 +1,5 @@
 export type Space = 'personal' | 'company';
+export type Kind = 'income' | 'expense';
 export type PhotoKind = 'webp' | 'jpeg' | 'pdf';
 
 export interface PhotoRef {
@@ -9,6 +10,7 @@ export interface PhotoRef {
 export interface Receipt {
   id: string; // ULID
   space: Space;
+  kind?: Kind; // 缺省视为 'expense'（兼容旧数据），读取用 kindOf()
   date: string; // YYYY-MM-DD
   merchant: string;
   totalCents: number;
@@ -21,22 +23,30 @@ export interface Receipt {
   deleted?: boolean; // 软删除墓碑
 }
 
+export const kindOf = (r: Pick<Receipt, 'kind'>): Kind => r.kind ?? 'expense';
+
 export interface AppConfig {
-  categories: Record<Space, string[]>;
+  categories: Record<Space, Record<Kind, string[]>>;
 }
 
 export const DEFAULT_CONFIG: AppConfig = {
   categories: {
-    company: [
-      'Office Supplies',
-      'Software & SaaS',
-      'Fuel',
-      'Parking',
-      'Meals & Entertainment',
-      'Travel',
-      'Equipment',
-      'Other',
-    ],
-    personal: ['Groceries', 'Dining', 'Transport', 'Utilities', 'Health', 'Other'],
+    company: {
+      expense: [
+        'Office Supplies',
+        'Software & SaaS',
+        'Fuel',
+        'Parking',
+        'Meals & Entertainment',
+        'Travel',
+        'Equipment',
+        'Other',
+      ],
+      income: ['Sales', 'Services', 'Interest', 'Other'],
+    },
+    personal: {
+      expense: ['Groceries', 'Dining', 'Transport', 'Utilities', 'Health', 'Other'],
+      income: ['Salary', 'Refunds', 'Interest', 'Other'],
+    },
   },
 };

@@ -1,9 +1,10 @@
 import { ulid } from 'ulid';
 import { db } from './db';
-import type { PhotoKind, Receipt, Space } from './types';
+import type { Kind, PhotoKind, Receipt, Space } from './types';
 
 export interface NewReceiptInput {
   space: Space;
+  kind: Kind;
   date: string;
   merchant: string;
   totalCents: number;
@@ -18,6 +19,7 @@ export async function saveReceipt(input: NewReceiptInput): Promise<Receipt> {
   const receipt: Receipt = {
     id: ulid(),
     space: input.space,
+    kind: input.kind,
     date: input.date,
     merchant: input.merchant.trim(),
     totalCents: input.totalCents,

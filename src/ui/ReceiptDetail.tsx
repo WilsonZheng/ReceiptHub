@@ -4,7 +4,7 @@ import { softDeleteReceipt, updateReceipt } from '../data/repo';
 import { formatNZD, gstFromTotalCents, parseNZD } from '../lib/money';
 import { getConfig } from '../lib/settings';
 import { useT } from '../lib/i18n';
-import type { Receipt } from '../data/types';
+import { kindOf, type Kind, type Receipt } from '../data/types';
 
 export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const [receipt, setReceipt] = useState<Receipt | null>(null);
@@ -15,12 +15,14 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
   const [date, setDate] = useState('');
   const [category, setCategory] = useState('');
   const [note, setNote] = useState('');
+  const [kind, setKind] = useState<Kind>('expense');
   const t = useT();
 
   useEffect(() => {
     void db.receipts.get(id).then((r) => {
       if (!r) return;
       setReceipt(r);
+      setKind(kindOf(r));
       setMerchant(r.merchant);
       setTotal((r.totalCents / 100).toFixed(2));
       setDate(r.date);
@@ -38,6 +40,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
     const gstCents = receipt.space === 'company' ? gstFromTotalCents(totalCents) : 0;
     await updateReceipt(id, {
       merchant,
+      kind,
       totalCents,
       gstCents,
       date,
@@ -87,7 +90,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
               {formatNZD(receipt.totalCents)}
             </p>
             <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-              {receipt.date} · {receipt.category} · {t(receipt.space)}
+              {receipt.date} · {receipt.category} · {t(kindOf(receipt))} · {t(receipt.space)}
               {receipt.space === 'company' && ` · GST ${formatNZD(receipt.gstCents)}`}
             </p>
             {receipt.note && <p className="mt-2 text-sm">{receipt.note}</p>}
@@ -124,8 +127,27 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
             onChange={(e) => setTotal(e.target.value)}
             className="field"
           />
+          <div className="flex gap-2">
+            {(['expense', 'income'] as const).map((k) => (
+              <button
+                key={k}
+                onClick={() => {
+                  setKind(k);
+                  setCategory('');
+                }}
+                className="rounded-full px-3 py-1.5 text-xs font-semibold"
+                style={
+                  kind === k
+                    ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
+                    : { background: 'var(--color-surface-2)', color: 'var(--color-ink-muted)' }
+                }
+              >
+                {t(k)}
+              </button>
+            ))}
+          </div>
           <div className="flex flex-wrap gap-2">
-            {getConfig().categories[receipt.space].map((c) => (
+            {getConfig().categories[receipt.space][kind].map((c) => (
               <button
                 key={c}
                 onClick={() => setCategory(c)}

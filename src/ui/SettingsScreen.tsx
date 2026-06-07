@@ -4,7 +4,7 @@ import { clearPat, getConfig, setConfig, DATA_REPO } from '../lib/settings';
 import { setLocale, useLocale, useT, type Locale } from '../lib/i18n';
 import { setTheme, useTheme, type Theme } from '../lib/theme';
 import { syncNow, useSyncStatus } from '../sync/useSync';
-import type { Space } from '../data/types';
+import type { AppConfig, Kind, Space } from '../data/types';
 
 function Pill({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
@@ -28,6 +28,7 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
   const [config, setLocalConfig] = useState(getConfig());
   const [newCat, setNewCat] = useState('');
   const [catSpace, setCatSpace] = useState<Space>('company');
+  const [catKind, setCatKind] = useState<Kind>('expense');
   const locale = useLocale();
   const theme = useTheme();
   const t = useT();
@@ -40,21 +41,27 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
 
   function addCategory() {
     if (!newCat.trim()) return;
-    const next = {
+    const next: AppConfig = {
       categories: {
         ...config.categories,
-        [catSpace]: [...config.categories[catSpace], newCat.trim()],
+        [catSpace]: {
+          ...config.categories[catSpace],
+          [catKind]: [...config.categories[catSpace][catKind], newCat.trim()],
+        },
       },
     };
     setConfig(next);
     setLocalConfig(next);
     setNewCat('');
   }
-  function removeCategory(space: Space, cat: string) {
-    const next = {
+  function removeCategory(space: Space, kind: Kind, cat: string) {
+    const next: AppConfig = {
       categories: {
         ...config.categories,
-        [space]: config.categories[space].filter((c) => c !== cat),
+        [space]: {
+          ...config.categories[space],
+          [kind]: config.categories[space][kind].filter((c) => c !== cat),
+        },
       },
     };
     setConfig(next);
@@ -129,23 +136,30 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
         <h3 className="font-bold">{t('categories')}</h3>
         {(['company', 'personal'] as const).map((sp) => (
           <div key={sp} className="mt-2">
-            <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+            <p className="text-xs font-semibold" style={{ color: 'var(--color-ink-muted)' }}>
               {t(sp)}
             </p>
-            <div className="mt-1 flex flex-wrap gap-1.5">
-              {config.categories[sp].map((c) => (
-                <span
-                  key={c}
-                  className="rounded-full px-2.5 py-1 text-xs"
-                  style={{ background: 'var(--color-surface-2)' }}
-                >
-                  {c}{' '}
-                  <button onClick={() => removeCategory(sp, c)} aria-label={`Remove ${c}`}>
-                    ✕
-                  </button>
-                </span>
-              ))}
-            </div>
+            {(['expense', 'income'] as const).map((k) => (
+              <div key={k} className="mt-1">
+                <p className="text-[10px]" style={{ color: 'var(--color-ink-muted)' }}>
+                  {t(k)}
+                </p>
+                <div className="mt-0.5 flex flex-wrap gap-1.5">
+                  {config.categories[sp][k].map((c) => (
+                    <span
+                      key={c}
+                      className="rounded-full px-2.5 py-1 text-xs"
+                      style={{ background: 'var(--color-surface-2)' }}
+                    >
+                      {c}{' '}
+                      <button onClick={() => removeCategory(sp, k, c)} aria-label={`Remove ${c}`}>
+                        ✕
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         ))}
         <div className="mt-2 flex gap-2">
@@ -156,6 +170,14 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
           >
             <option value="company">{t('company')}</option>
             <option value="personal">{t('personal')}</option>
+          </select>
+          <select
+            value={catKind}
+            onChange={(e) => setCatKind(e.target.value as Kind)}
+            className="field w-auto"
+          >
+            <option value="expense">{t('expense')}</option>
+            <option value="income">{t('income')}</option>
           </select>
           <input
             value={newCat}
