@@ -13,7 +13,10 @@ export function pickKind(mime: string): PhotoKind {
   return mime === 'application/pdf' ? 'pdf' : 'webp';
 }
 
-async function drawToBlob(bitmap: ImageBitmap, max: number): Promise<{ blob: Blob; kind: PhotoKind }> {
+async function drawToBlob(
+  bitmap: ImageBitmap,
+  max: number,
+): Promise<{ blob: Blob; kind: PhotoKind }> {
   const { w, h } = fitWithin(bitmap.width, bitmap.height, max);
   const canvas = document.createElement('canvas');
   canvas.width = w;

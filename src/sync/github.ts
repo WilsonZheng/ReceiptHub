@@ -55,7 +55,11 @@ export class GithubClient {
     return { text: fromBase64(json.content), sha: json.sha };
   }
 
-  async putRaw(path: string, base64: string, opts: { sha?: string; message: string }): Promise<string> {
+  async putRaw(
+    path: string,
+    base64: string,
+    opts: { sha?: string; message: string },
+  ): Promise<string> {
     const res = await this.req(path, {
       method: 'PUT',
       body: JSON.stringify({
@@ -69,7 +73,11 @@ export class GithubClient {
     return json.content.sha;
   }
 
-  async putFile(path: string, text: string, opts: { sha?: string; message: string }): Promise<string> {
+  async putFile(
+    path: string,
+    text: string,
+    opts: { sha?: string; message: string },
+  ): Promise<string> {
     return this.putRaw(path, await toBase64(new Blob([text])), opts);
   }
 

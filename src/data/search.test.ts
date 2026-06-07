@@ -24,7 +24,8 @@ const docs = [
 
 describe('searchReceipts', () => {
   const idx = buildIndex(docs);
-  it('matches merchant with typo (fuzzy)', () => expect(searchReceipts(idx, 'bunings')).toContain('1'));
+  it('matches merchant with typo (fuzzy)', () =>
+    expect(searchReceipts(idx, 'bunings')).toContain('1'));
   it('matches note words', () => expect(searchReceipts(idx, 'hamilton')).toContain('2'));
   it('matches category prefix', () => expect(searchReceipts(idx, 'equip')).toContain('1'));
   it('matches amount string', () => expect(searchReceipts(idx, '1299')).toContain('3'));

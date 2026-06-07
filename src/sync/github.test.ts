@@ -5,9 +5,7 @@ const client = () => new GithubClient('tok', 'WilsonZheng/ReceiptHub-data');
 afterEach(() => vi.restoreAllMocks());
 
 const mockFetch = (status: number, body: unknown) =>
-  vi
-    .spyOn(globalThis, 'fetch')
-    .mockResolvedValue(new Response(JSON.stringify(body), { status }));
+  vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify(body), { status }));
 
 describe('toBase64', () => {
   it('handles unicode', async () => {
@@ -38,7 +36,9 @@ describe('putFile', () => {
     const sha = await client().putFile('company/2026-06.json', '[]', { sha: 'old', message: 'm' });
     expect(sha).toBe('new');
     const [url, init] = spy.mock.calls[0];
-    expect(String(url)).toContain('/repos/WilsonZheng/ReceiptHub-data/contents/company/2026-06.json');
+    expect(String(url)).toContain(
+      '/repos/WilsonZheng/ReceiptHub-data/contents/company/2026-06.json',
+    );
     expect(JSON.parse(String(init?.body))).toMatchObject({ sha: 'old', content: btoa('[]') });
   });
   it('throws ConflictError on 409/422 sha mismatch', async () => {
@@ -52,7 +52,9 @@ describe('putFile', () => {
 describe('listDir', () => {
   it('maps entries to path+sha', async () => {
     mockFetch(200, [{ path: 'company/2026-06.json', sha: 's1', type: 'file' }]);
-    expect(await client().listDir('company')).toEqual([{ path: 'company/2026-06.json', sha: 's1' }]);
+    expect(await client().listDir('company')).toEqual([
+      { path: 'company/2026-06.json', sha: 's1' },
+    ]);
   });
   it('empty on 404 (dir not created yet)', async () => {
     mockFetch(404, { message: 'Not Found' });

@@ -67,6 +67,8 @@ export async function softDeleteReceipt(id: string): Promise<void> {
 
 export async function listReceipts(space: Space | 'all'): Promise<Receipt[]> {
   const all =
-    space === 'all' ? await db.receipts.toArray() : await db.receipts.where('space').equals(space).toArray();
+    space === 'all'
+      ? await db.receipts.toArray()
+      : await db.receipts.where('space').equals(space).toArray();
   return all.filter((r) => !r.deleted).sort((a, b) => (a.date < b.date ? 1 : -1));
 }
