@@ -4,7 +4,10 @@ import { setPat, DATA_REPO } from '../lib/settings';
 export function LockScreen({ onUnlock }: { onUnlock: () => void }) {
   const [value, setValue] = useState('');
   return (
-    <div className="mx-auto flex h-dvh max-w-sm flex-col items-center justify-center gap-4 px-8">
+    <div
+      className="mx-auto flex h-dvh max-w-sm flex-col items-center justify-center gap-4 px-8"
+      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+    >
       <h1 className="text-2xl font-bold">ReceiptHub</h1>
       <p className="text-center text-sm" style={{ color: 'var(--color-ink-muted)' }}>
         Paste a fine-grained PAT with Contents read/write on <code>{DATA_REPO}</code>

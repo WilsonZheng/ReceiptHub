@@ -130,7 +130,8 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         className="text-sm underline"
         style={{ color: 'var(--color-ink-muted)' }}
       >
-        Upload from library / files (images & PDF) — or drag & drop / ⌘V
+        Upload from library / files (images & PDF)
+        <span className="hidden sm:inline"> — or drag & drop / ⌘V</span>
       </button>
 
       {files.length > 0 && (

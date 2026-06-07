@@ -24,7 +24,15 @@ export default function App() {
   if (!unlocked) return <LockScreen onUnlock={() => setUnlocked(true)} />;
 
   return (
-    <div className="mx-auto flex h-dvh max-w-lg flex-col">
+    <div
+      className="mx-auto flex h-dvh max-w-lg flex-col"
+      style={{
+        // 刘海/灵动岛安全区：PWA 全屏模式下 header 不被状态栏压住
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingLeft: 'env(safe-area-inset-left)',
+        paddingRight: 'env(safe-area-inset-right)',
+      }}
+    >
       {authBanner && (
         <div
           className="px-4 py-2 text-center text-xs font-semibold"
