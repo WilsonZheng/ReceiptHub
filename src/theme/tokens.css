@@ -1,0 +1,17 @@
+/* 视觉方向晚绑定点：三个候选方向只改这里的值。
+   组件一律引用 token，禁止硬编码颜色。
+   当前值 = 方向 B (Midnight Ledger)，作为开发期默认。 */
+@theme {
+  --color-bg: #0e1116;
+  --color-surface: #151a21;
+  --color-surface-2: #1a212b;
+  --color-border: #1f2731;
+  --color-ink: #e8ecf1;
+  --color-ink-muted: #5d6878;
+  --color-accent: #3ddc97;
+  --color-accent-ink: #06070a;
+  --color-danger: #ff6b6b;
+  --font-display: -apple-system, system-ui, sans-serif;
+  --font-numeric: ui-monospace, 'SF Mono', monospace;
+  --radius-card: 12px;
+}

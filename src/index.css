@@ -1,0 +1,17 @@
+@import 'tailwindcss';
+@import './theme/tokens.css';
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-display);
+}
+
+.field {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  width: 100%;
+}
