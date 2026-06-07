@@ -2,51 +2,79 @@ import { useEffect, useMemo, useState } from 'react';
 import { listReceipts } from '../data/repo';
 import { receiptsToCsv, summarize } from '../lib/csv';
 import { formatNZD } from '../lib/money';
+import { localToday } from '../lib/dates';
 import { useLocale, useT, type MsgKey } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
 import { DateField } from './components/DateField';
 import type { Receipt, Space } from '../data/types';
 
-type PresetKind = 'thisMonth' | 'lastMonth' | 'last2Months';
+type PresetKind = 'all' | 'thisMonth' | 'lastMonth' | 'last2Months' | 'thisYear';
+type Selection = { kind: PresetKind } | { from: string; to: string };
 
 // 全部用本地时区组日期——NZ 上午用 UTC 会差一天
 const pad = (n: number) => String(n).padStart(2, '0');
 const ymd = (y: number, m0: number, d: number) => `${y}-${pad(m0 + 1)}-${pad(d)}`;
+// 月末必须经真实 Date 计算（ymd 是纯字符串拼接，传 day=0 会产出非法的 "-00"）
+const endOfMonth = (y: number, m0: number) => {
+  const d = new Date(y, m0 + 1, 0);
+  return ymd(d.getFullYear(), d.getMonth(), d.getDate());
+};
 
-function preset(kind: PresetKind): { from: string; to: string } {
+// 预设边界用整月/整年，含未来日期的票（票面日期可能晚于今天）
+function presetRange(kind: PresetKind, span: { from: string; to: string }) {
   const now = new Date();
   const y = now.getFullYear();
   const m = now.getMonth();
-  const today = ymd(y, m, now.getDate());
-  if (kind === 'thisMonth') return { from: ymd(y, m, 1), to: today };
+  if (kind === 'all') return span;
+  if (kind === 'thisMonth') return { from: ymd(y, m, 1), to: endOfMonth(y, m) };
   if (kind === 'lastMonth') {
-    const end = new Date(y, m, 0); // 上月最后一天（本地）
+    const end = new Date(y, m, 0);
     return {
       from: ymd(end.getFullYear(), end.getMonth(), 1),
       to: ymd(end.getFullYear(), end.getMonth(), end.getDate()),
     };
   }
+  if (kind === 'thisYear') return { from: `${y}-01-01`, to: `${y}-12-31` };
   const prev = new Date(y, m - 1, 1);
-  return { from: ymd(prev.getFullYear(), prev.getMonth(), 1), to: today };
+  return { from: ymd(prev.getFullYear(), prev.getMonth(), 1), to: endOfMonth(y, m) };
 }
 
 const PRESETS: { kind: PresetKind; labelKey: MsgKey }[] = [
+  { kind: 'all', labelKey: 'allTime' },
   { kind: 'thisMonth', labelKey: 'thisMonth' },
   { kind: 'lastMonth', labelKey: 'lastMonth' },
   { kind: 'last2Months', labelKey: 'last2Months' },
+  { kind: 'thisYear', labelKey: 'thisYear' },
 ];
 
 export function ExportScreen({ space }: { space: Space }) {
-  const [{ from, to }, setRange] = useState(preset('last2Months'));
-  const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const [sel, setSel] = useState<Selection>({ kind: 'all' }); // 默认全部
+  const [allReceipts, setAllReceipts] = useState<Receipt[]>([]);
   const t = useT();
   const locale = useLocale();
 
   useEffect(() => {
-    void listReceipts(space).then((rs) =>
-      setReceipts(rs.filter((r) => r.date >= from && r.date <= to)),
-    );
-  }, [space, from, to]);
+    void listReceipts(space).then(setAllReceipts);
+  }, [space]);
+
+  // 数据实际跨度（含未来日期），作为"全部"的边界
+  const span = useMemo(() => {
+    const today = localToday();
+    if (!allReceipts.length) return { from: today, to: today };
+    let min = allReceipts[0].date;
+    let max = allReceipts[0].date;
+    for (const r of allReceipts) {
+      if (r.date < min) min = r.date;
+      if (r.date > max) max = r.date;
+    }
+    return { from: min, to: max > today ? max : today };
+  }, [allReceipts]);
+
+  const { from, to } = 'kind' in sel ? presetRange(sel.kind, span) : sel;
+  const receipts = useMemo(
+    () => allReceipts.filter((r) => r.date >= from && r.date <= to),
+    [allReceipts, from, to],
+  );
 
   const s = useMemo(() => summarize(receipts), [receipts]);
 
@@ -61,21 +89,28 @@ export function ExportScreen({ space }: { space: Space }) {
 
   return (
     <div className="flex flex-col gap-3 py-2">
-      <div className="flex gap-2 text-xs">
-        {PRESETS.map((p) => (
-          <button
-            key={p.kind}
-            onClick={() => setRange(preset(p.kind))}
-            className="rounded-full px-3 py-1.5"
-            style={{ background: 'var(--color-surface-2)' }}
-          >
-            {t(p.labelKey)}
-          </button>
-        ))}
+      <div className="flex flex-wrap gap-1.5 text-xs">
+        {PRESETS.map((p) => {
+          const active = 'kind' in sel && sel.kind === p.kind;
+          return (
+            <button
+              key={p.kind}
+              onClick={() => setSel({ kind: p.kind })}
+              className="rounded-full px-3 py-1.5 font-semibold"
+              style={
+                active
+                  ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
+                  : { background: 'var(--color-surface-2)', color: 'var(--color-ink-muted)' }
+              }
+            >
+              {t(p.labelKey)}
+            </button>
+          );
+        })}
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <DateField value={from} onChange={(v) => setRange({ from: v, to })} />
-        <DateField value={to} onChange={(v) => setRange({ from, to: v })} />
+        <DateField value={from} onChange={(v) => setSel({ from: v, to })} />
+        <DateField value={to} onChange={(v) => setSel({ from, to: v })} />
       </div>
       <div className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
         <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
@@ -85,8 +120,11 @@ export function ExportScreen({ space }: { space: Space }) {
           <span className="text-sm">
             {t('expense')} ({s.expense.count})
           </span>
-          <span className="text-xl font-bold" style={{ fontFamily: 'var(--font-numeric)' }}>
-            {formatNZD(s.expense.totalCents)}
+          <span
+            className="text-xl font-bold"
+            style={{ fontFamily: 'var(--font-numeric)', color: 'var(--color-danger)' }}
+          >
+            -{formatNZD(s.expense.totalCents)}
           </span>
         </div>
         <div className="flex items-baseline justify-between">

@@ -231,6 +231,13 @@ test('future-dated receipt still counted in all-time stats', async ({ page }) =>
   await page.getByRole('button', { name: 'Stats' }).click();
   await expect(page.getByText('Expense (1)')).toBeVisible(); // 全部范围计入
   await expect(page.getByText('-$29.99').first()).toBeVisible();
+
+  // 导出页默认"全部"，未来日期同样计入
+  await openMore(page, 'Export');
+  await expect(page.getByText('Expense (1)')).toBeVisible();
+  // 切到"本月"应排除未来票据
+  await page.getByRole('button', { name: 'This month', exact: true }).click();
+  await expect(page.getByText('Expense (0)')).toBeVisible();
 });
 
 test('capture draft survives tab switches and can be discarded', async ({ page }) => {

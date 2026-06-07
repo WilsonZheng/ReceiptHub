@@ -21,6 +21,15 @@ describe('formatMonth', () => {
   it('en', () => expect(formatMonth('2026-06', 'en')).toMatch(/June 2026/));
 });
 
+describe('invalid date safety', () => {
+  it('formatDate returns raw string instead of throwing', () => {
+    expect(formatDate('2026-07-00', 'en')).toBe('2026-07-00');
+  });
+  it('formatMonth returns raw string instead of throwing', () => {
+    expect(formatMonth('not-a-month', 'zh')).toBe('not-a-month');
+  });
+});
+
 describe('localToday', () => {
   it('uses LOCAL date parts, not UTC (NZ 上午 UTC 还是昨天)', () => {
     const d = new Date();
