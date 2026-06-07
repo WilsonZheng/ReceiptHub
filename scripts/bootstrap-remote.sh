@@ -1,35 +1,31 @@
 #!/usr/bin/env bash
-# 一键创建远程仓库并部署。前置：gh auth login 已切到 WilsonZheng 个人账号。
+# 推送两个仓库并触发 Pages 部署。
+# 前置：github.com/new 上已创建空仓库 ReceiptHub (public) 和 ReceiptHub-data (private)，
+#       不要勾选 README/license（必须是空仓库）。
+# 认证：走 ~/.ssh/config 的 github.com-personal 别名（WilsonZheng 个人身份）。
 set -euo pipefail
 
-ACTIVE=$(gh api user --jq .login)
-if [ "$ACTIVE" != "WilsonZheng" ]; then
-  echo "❌ 当前 gh 账号是 $ACTIVE，不是 WilsonZheng。先运行: gh auth login / gh auth switch"
+APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+DATA_DIR="$APP_DIR/../ReceiptHub-data"
+
+echo "→ 验证个人 SSH 身份…"
+ssh -T git@github.com-personal 2>&1 | grep -q 'Hi WilsonZheng' || {
+  echo "❌ SSH 别名 github.com-personal 未认证为 WilsonZheng"
   exit 1
-fi
+}
 
-echo "✅ 账号确认: $ACTIVE"
+echo "→ 推送 ReceiptHub-data (private)…"
+git -C "$DATA_DIR" push -u origin main
 
-# 1. 私有数据仓库
-cd "$(dirname "$0")/../../ReceiptHub-data"
-git add -A && git commit -m "chore: seed config" --quiet || true
-gh repo create WilsonZheng/ReceiptHub-data --private --source . --push
-echo "✅ ReceiptHub-data (private) 已创建并推送"
-
-# 2. 应用仓库（public，Pages 要求）
-cd "$(dirname "$0")/.."
-gh repo create WilsonZheng/ReceiptHub --public --source . --push
-echo "✅ ReceiptHub (public) 已创建并推送"
-
-# 3. 启用 Pages（Actions 构建模式）
-gh api -X POST repos/WilsonZheng/ReceiptHub/pages -f build_type=workflow 2>/dev/null ||
-  echo "ℹ️  Pages 可能已启用，跳过"
+echo "→ 推送 ReceiptHub (public)…"
+git -C "$APP_DIR" push -u origin main
 
 echo ""
-echo "🚀 部署中… 查看进度: gh run watch"
-echo "完成后访问: https://wilsonzheng.github.io/ReceiptHub/"
+echo "🚀 已推送。deploy workflow 会自动启用并部署 Pages（首次约 2 分钟）。"
+echo "   进度: https://github.com/WilsonZheng/ReceiptHub/actions"
+echo "   完成后访问: https://wilsonzheng.github.io/ReceiptHub/"
 echo ""
-echo "下一步: 创建 fine-grained PAT (Settings → Developer settings → Fine-grained tokens)"
+echo "最后一步: 创建 fine-grained PAT (Settings → Developer settings → Fine-grained tokens)"
 echo "  - Repository access: 只选 ReceiptHub-data"
 echo "  - Permissions: Contents → Read and write"
 echo "  - 粘贴进应用锁屏即可使用"
