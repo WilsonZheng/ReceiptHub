@@ -16,6 +16,6 @@ jobs:
       - run: npx tsc --noEmit
       - run: npx prettier --check src e2e scripts
       - run: npx vitest run
+      - run: npx vite build # playwright 的 preview 服务器需要 dist/，必须先 build
       - run: npx playwright install chromium --with-deps
       - run: npx playwright test
-      - run: npx vite build

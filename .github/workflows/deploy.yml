@@ -23,9 +23,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # 注意：Pages 站点需在仓库 Settings → Pages → Source: GitHub Actions 手动启用一次
+      # （GITHUB_TOKEN 无 admin 权限，无法自动创建站点）
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true # 首次运行自动启用 Pages（Actions 源），无需手动开
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
