@@ -104,8 +104,7 @@ const en = {
   unlock: 'Unlock',
   authBanner: 'GitHub token rejected — update your PAT in Settings.',
   dismiss: 'Dismiss',
-  updateReady: 'New version ready',
-  refresh: 'Refresh',
+  updateReady: 'New version ready — tap here to update',
 } as const;
 
 export type MsgKey = keyof typeof en;
@@ -203,8 +202,7 @@ const zh: Record<MsgKey, string> = {
   unlock: '解锁',
   authBanner: 'GitHub token 被拒绝——请到设置中更新 PAT。',
   dismiss: '关闭',
-  updateReady: '新版本已就绪',
-  refresh: '更新',
+  updateReady: '新版本已就绪，点这里更新',
 };
 
 const dicts: Record<Locale, Record<MsgKey, string>> = { en, zh };

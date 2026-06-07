@@ -116,6 +116,16 @@ a:active,
   }
 }
 
+/* 更新按钮呼吸动画：循环 4 次吸引注意后停止，不长期打扰 */
+.update-pulse {
+  animation: update-pulse 1.6s ease-in-out 4;
+}
+@keyframes update-pulse {
+  50% {
+    transform: scale(1.06);
+  }
+}
+
 /* 下拉刷新指示器旋转 */
 .ptr-spin {
   animation: ptr-spin 0.8s linear infinite;

@@ -76,14 +76,21 @@ export default function App() {
     }
   }
 
+  // 悬浮胶囊按钮：圆角+阴影+呼吸动画，明确"可点击"
   const updateBanner = needRefresh && (
-    <button
-      onClick={() => void updateServiceWorker(true)}
-      className="drop-in w-full px-4 py-2 text-center text-xs font-semibold"
-      style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
-    >
-      {t('updateReady')} → {t('refresh')}
-    </button>
+    <div className="drop-in pointer-events-none fixed inset-x-0 top-[max(env(safe-area-inset-top),0.5rem)] z-50 flex justify-center">
+      <button
+        onClick={() => void updateServiceWorker(true)}
+        className="update-pulse pointer-events-auto rounded-full px-5 py-2.5 text-sm font-bold"
+        style={{
+          background: 'var(--color-accent)',
+          color: 'var(--color-accent-ink)',
+          boxShadow: '0 6px 20px rgba(61, 220, 151, 0.45)',
+        }}
+      >
+        ⟳ {t('updateReady')}
+      </button>
+    </div>
   );
 
   if (!unlocked)
