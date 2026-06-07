@@ -1,8 +1,26 @@
 import { useEffect, useState } from 'react';
 import { db } from '../data/db';
 import { clearPat, getConfig, setConfig, DATA_REPO } from '../lib/settings';
+import { setLocale, useLocale, useT, type Locale } from '../lib/i18n';
+import { setTheme, useTheme, type Theme } from '../lib/theme';
 import { syncNow, useSyncStatus } from '../sync/useSync';
 import type { Space } from '../data/types';
+
+function Pill({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="rounded-full px-3 py-1.5 text-xs font-semibold"
+      style={
+        active
+          ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
+          : { background: 'var(--color-surface-2)', color: 'var(--color-ink-muted)' }
+      }
+    >
+      {label}
+    </button>
+  );
+}
 
 export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
   const { status, pending } = useSyncStatus();
@@ -10,6 +28,9 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
   const [config, setLocalConfig] = useState(getConfig());
   const [newCat, setNewCat] = useState('');
   const [catSpace, setCatSpace] = useState<Space>('company');
+  const locale = useLocale();
+  const theme = useTheme();
+  const t = useT();
 
   useEffect(() => {
     void Promise.all([db.receipts.count(), db.photos.count()]).then(([receipts, photos]) =>
@@ -40,19 +61,59 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
     setLocalConfig(next);
   }
 
+  const LOCALES: { value: Locale; label: string }[] = [
+    { value: 'en', label: 'English' },
+    { value: 'zh', label: '中文' },
+  ];
+  const THEMES: { value: Theme; labelKey: 'dark' | 'light' }[] = [
+    { value: 'dark', labelKey: 'dark' },
+    { value: 'light', labelKey: 'light' },
+  ];
+
   return (
     <div className="flex flex-col gap-4 py-2 text-sm">
       <section className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
-        <h3 className="font-bold">Sync</h3>
+        <h3 className="font-bold">{t('preferences')}</h3>
+        <div className="mt-2 flex items-center justify-between">
+          <span style={{ color: 'var(--color-ink-muted)' }}>{t('language')}</span>
+          <div className="flex gap-1.5">
+            {LOCALES.map((l) => (
+              <Pill
+                key={l.value}
+                active={locale === l.value}
+                label={l.label}
+                onClick={() => setLocale(l.value)}
+              />
+            ))}
+          </div>
+        </div>
+        <div className="mt-2 flex items-center justify-between">
+          <span style={{ color: 'var(--color-ink-muted)' }}>{t('theme')}</span>
+          <div className="flex gap-1.5">
+            {THEMES.map((th) => (
+              <Pill
+                key={th.value}
+                active={theme === th.value}
+                label={t(th.labelKey)}
+                onClick={() => setTheme(th.value)}
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
+        <h3 className="font-bold">{t('sync')}</h3>
         <p style={{ color: 'var(--color-ink-muted)' }}>
-          {status} · {pending} pending · {counts.receipts} receipts · {counts.photos} photos ·{' '}
+          {t(`status_${status}`)} · {pending} {t('pendingUnit')} · {counts.receipts}{' '}
+          {t('receiptsUnit')} · {counts.photos} {t('photosUnit')} ·{' '}
           <a
             className="underline"
             href={`https://github.com/${DATA_REPO}`}
             target="_blank"
             rel="noreferrer"
           >
-            data repo
+            {t('dataRepo')}
           </a>
         </p>
         <button
@@ -60,16 +121,16 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
           className="mt-2 rounded-lg px-3 py-1.5"
           style={{ background: 'var(--color-surface-2)' }}
         >
-          Sync now
+          {t('syncNow')}
         </button>
       </section>
 
       <section className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
-        <h3 className="font-bold">Categories</h3>
+        <h3 className="font-bold">{t('categories')}</h3>
         {(['company', 'personal'] as const).map((sp) => (
           <div key={sp} className="mt-2">
-            <p className="text-xs capitalize" style={{ color: 'var(--color-ink-muted)' }}>
-              {sp}
+            <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+              {t(sp)}
             </p>
             <div className="mt-1 flex flex-wrap gap-1.5">
               {config.categories[sp].map((c) => (
@@ -93,27 +154,27 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
             onChange={(e) => setCatSpace(e.target.value as Space)}
             className="field w-auto"
           >
-            <option value="company">company</option>
-            <option value="personal">personal</option>
+            <option value="company">{t('company')}</option>
+            <option value="personal">{t('personal')}</option>
           </select>
           <input
             value={newCat}
             onChange={(e) => setNewCat(e.target.value)}
-            placeholder="New category"
+            placeholder={t('newCategory')}
             className="field"
           />
           <button
             onClick={addCategory}
-            className="rounded-lg px-3"
+            className="whitespace-nowrap rounded-lg px-3"
             style={{ background: 'var(--color-surface-2)' }}
           >
-            Add
+            {t('add')}
           </button>
         </div>
       </section>
 
       <section className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
-        <h3 className="font-bold">Access</h3>
+        <h3 className="font-bold">{t('access')}</h3>
         <button
           onClick={() => {
             clearPat();
@@ -122,7 +183,7 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
           className="mt-2 rounded-lg px-3 py-1.5"
           style={{ color: 'var(--color-danger)', background: 'var(--color-surface-2)' }}
         >
-          Clear PAT & lock
+          {t('clearPat')}
         </button>
       </section>
     </div>

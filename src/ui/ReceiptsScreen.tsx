@@ -3,6 +3,7 @@ import { liveQuery } from 'dexie';
 import { db } from '../data/db';
 import { buildIndex, searchReceipts } from '../data/search';
 import { formatNZD } from '../lib/money';
+import { useT } from '../lib/i18n';
 import type { Receipt, Space } from '../data/types';
 import { ReceiptDetail } from './ReceiptDetail';
 
@@ -11,6 +12,7 @@ export function ReceiptsScreen({ space }: { space: Space }) {
   const [query, setQuery] = useState('');
   const [scope, setScope] = useState<Space | 'all'>(space);
   const [openId, setOpenId] = useState<string | null>(null);
+  const t = useT();
 
   useEffect(() => setScope(space), [space]);
   useEffect(() => {
@@ -42,7 +44,7 @@ export function ReceiptsScreen({ space }: { space: Space }) {
   return (
     <div className="flex flex-col gap-2 py-2">
       <input
-        placeholder="⌕ Search merchant, note, amount…"
+        placeholder={t('searchPlaceholder')}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         className="field"
@@ -52,10 +54,10 @@ export function ReceiptsScreen({ space }: { space: Space }) {
           <button
             key={s}
             onClick={() => setScope(s)}
-            className="capitalize underline-offset-4"
+            className="underline-offset-4"
             style={{ color: scope === s ? 'var(--color-accent)' : 'var(--color-ink-muted)' }}
           >
-            {s}
+            {t(s)}
           </button>
         ))}
       </div>
@@ -81,7 +83,7 @@ export function ReceiptsScreen({ space }: { space: Space }) {
                 <span className="block text-sm font-semibold">{r.merchant}</span>
                 <span className="block text-[10px]" style={{ color: 'var(--color-ink-muted)' }}>
                   {r.date} · {r.category}
-                  {r.space === 'personal' ? ' · personal' : ''}
+                  {r.space === 'personal' ? t('personalSuffix') : ''}
                 </span>
               </span>
               <span className="text-right" style={{ fontFamily: 'var(--font-numeric)' }}>
@@ -100,7 +102,7 @@ export function ReceiptsScreen({ space }: { space: Space }) {
       ))}
       {visible.length === 0 && (
         <p className="py-8 text-center text-sm" style={{ color: 'var(--color-ink-muted)' }}>
-          No receipts{query ? ' matching search' : ' yet'}
+          {query ? t('noReceiptsMatch') : t('noReceiptsYet')}
         </p>
       )}
     </div>

@@ -15,3 +15,16 @@
   --font-numeric: ui-monospace, 'SF Mono', monospace;
   --radius-card: 12px;
 }
+
+/* Light mode：Midnight Ledger 的浅色姊妹版（同一薄荷绿色系，对比度调深） */
+[data-theme='light'] {
+  --color-bg: #f4f7f6;
+  --color-surface: #ffffff;
+  --color-surface-2: #e9eeec;
+  --color-border: #dde4e1;
+  --color-ink: #10201c;
+  --color-ink-muted: #66737d;
+  --color-accent: #0f9d6a;
+  --color-accent-ink: #ffffff;
+  --color-danger: #c43d3d;
+}

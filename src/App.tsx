@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getPat } from './lib/settings';
 import type { Space } from './data/types';
 import { onAuthError } from './sync/useSync';
+import { useT } from './lib/i18n';
 import { LockScreen } from './ui/LockScreen';
 import { CaptureScreen } from './ui/CaptureScreen';
 import { ReceiptsScreen } from './ui/ReceiptsScreen';
@@ -16,6 +17,7 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('capture');
   const [space, setSpace] = useState<Space>('company');
   const [authBanner, setAuthBanner] = useState(false);
+  const t = useT();
 
   useEffect(() => {
     onAuthError(() => setAuthBanner(true));
@@ -38,9 +40,9 @@ export default function App() {
           className="px-4 py-2 text-center text-xs font-semibold"
           style={{ background: 'var(--color-danger)', color: '#fff' }}
         >
-          GitHub token rejected — update your PAT in Settings.{' '}
+          {t('authBanner')}{' '}
           <button className="underline" onClick={() => setAuthBanner(false)}>
-            Dismiss
+            {t('dismiss')}
           </button>
         </div>
       )}

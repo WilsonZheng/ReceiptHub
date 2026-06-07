@@ -106,7 +106,20 @@ test('offline capture queues, sync drains outbox when online', async ({ page, co
   await context.setOffline(false);
   await page.getByRole('button', { name: 'Settings' }).click();
   await page.getByRole('button', { name: 'Sync now' }).click();
-  await expect(page.getByText(/idle · 0 pending/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/synced · 0 pending/)).toBeVisible({ timeout: 15_000 });
+});
+
+test('theme and language switching persists', async ({ page }) => {
+  await page.getByRole('button', { name: 'Settings' }).click();
+  // Playwright 默认模拟 prefers-color-scheme: light → 初始应为 light
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.getByRole('button', { name: 'Dark', exact: true }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.getByRole('button', { name: '中文' }).click();
+  await expect(page.getByRole('button', { name: '票据' })).toBeVisible(); // tab 已切中文
+  await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark'); // 主题持久化
+  await expect(page.getByRole('button', { name: '设置' })).toBeVisible(); // 语言持久化
 });
 
 test('space toggle separates company and personal', async ({ page }) => {
@@ -118,6 +131,6 @@ test('space toggle separates company and personal', async ({ page }) => {
   await expect(page.getByText('Personal Shop')).toBeVisible();
   await expect(page.getByText('Company Store')).not.toBeVisible();
   // all 范围两者都显示
-  await page.getByRole('button', { name: 'all', exact: true }).click();
+  await page.getByRole('button', { name: 'All', exact: true }).click();
   await expect(page.getByText('Company Store')).toBeVisible();
 });

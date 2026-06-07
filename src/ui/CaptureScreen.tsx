@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { processFile, type ProcessedFile } from '../lib/image';
 import { formatNZD, gstFromTotalCents, parseNZD } from '../lib/money';
 import { getConfig } from '../lib/settings';
+import { useT } from '../lib/i18n';
 import { saveReceipt } from '../data/repo';
 import { db } from '../data/db';
 import type { Space } from '../data/types';
@@ -21,6 +22,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
   const [merchants, setMerchants] = useState<string[]>([]);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const t = useT();
 
   useEffect(() => {
     void db.receipts
@@ -123,15 +125,15 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         className="rounded-xl py-10 text-lg font-bold"
         style={{ background: 'var(--color-surface)', border: '1px dashed var(--color-border)' }}
       >
-        📷 Take photo
+        {t('takePhoto')}
       </button>
       <button
         onClick={() => libraryRef.current?.click()}
         className="text-sm underline"
         style={{ color: 'var(--color-ink-muted)' }}
       >
-        Upload from library / files (images & PDF)
-        <span className="hidden sm:inline"> — or drag & drop / ⌘V</span>
+        {t('uploadLabel')}
+        <span className="hidden sm:inline">{t('uploadDesktopHint')}</span>
       </button>
 
       {files.length > 0 && (
@@ -154,7 +156,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
               <button
                 onClick={() => setFiles(files.filter((_, j) => j !== i))}
                 className="absolute right-0 top-0 px-1 text-xs"
-                aria-label="Remove file"
+                aria-label={t('removeFile')}
               >
                 ✕
               </button>
@@ -171,7 +173,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="field" />
       <input
         list="merchants"
-        placeholder="Merchant"
+        placeholder={t('merchant')}
         value={merchant}
         onChange={(e) => setMerchant(e.target.value)}
         className="field"
@@ -183,7 +185,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       </datalist>
       <input
         inputMode="decimal"
-        placeholder="Total (incl. GST)"
+        placeholder={t('totalInclGst')}
         value={total}
         onChange={(e) => {
           setTotal(e.target.value);
@@ -202,7 +204,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
             onClick={() => setGstOverride(gstOverride === 0 ? null : 0)}
             className="underline"
           >
-            {gstOverride === 0 ? 'GST auto' : 'No GST'}
+            {gstOverride === 0 ? t('gstAuto') : t('noGst')}
           </button>
         </div>
       )}
@@ -225,7 +227,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       </div>
 
       <input
-        placeholder="Note (optional)"
+        placeholder={t('noteOptional')}
         value={note}
         onChange={(e) => setNote(e.target.value)}
         className="field"
@@ -236,7 +238,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         className="rounded-xl py-3 font-bold disabled:opacity-40"
         style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
       >
-        Save
+        {t('save')}
       </button>
     </div>
   );

@@ -3,6 +3,7 @@ import { db, type PhotoRow } from '../data/db';
 import { softDeleteReceipt, updateReceipt } from '../data/repo';
 import { formatNZD, gstFromTotalCents, parseNZD } from '../lib/money';
 import { getConfig } from '../lib/settings';
+import { useT } from '../lib/i18n';
 import type { Receipt } from '../data/types';
 
 export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void }) {
@@ -14,6 +15,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
   const [date, setDate] = useState('');
   const [category, setCategory] = useState('');
   const [note, setNote] = useState('');
+  const t = useT();
 
   useEffect(() => {
     void db.receipts.get(id).then((r) => {
@@ -46,7 +48,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
   }
 
   async function handleDelete() {
-    if (confirm('Delete this receipt?')) {
+    if (confirm(t('deleteConfirm'))) {
       await softDeleteReceipt(id);
       onClose();
     }
@@ -55,7 +57,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
   return (
     <div className="flex flex-col gap-3 py-2">
       <button onClick={onClose} className="self-start text-sm underline">
-        ← Back
+        {t('back')}
       </button>
       {photos.map((p) => (
         <div
@@ -70,7 +72,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
               target="_blank"
               rel="noreferrer"
             >
-              Open PDF
+              {t('openPdf')}
             </a>
           ) : (
             <img src={URL.createObjectURL(p.full)} className="w-full" alt={receipt.merchant} />
@@ -85,7 +87,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
               {formatNZD(receipt.totalCents)}
             </p>
             <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-              {receipt.date} · {receipt.category} · {receipt.space}
+              {receipt.date} · {receipt.category} · {t(receipt.space)}
               {receipt.space === 'company' && ` · GST ${formatNZD(receipt.gstCents)}`}
             </p>
             {receipt.note && <p className="mt-2 text-sm">{receipt.note}</p>}
@@ -96,14 +98,14 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
               className="flex-1 rounded-xl py-2 font-semibold"
               style={{ background: 'var(--color-surface-2)' }}
             >
-              Edit
+              {t('edit')}
             </button>
             <button
               onClick={() => void handleDelete()}
               className="flex-1 rounded-xl py-2 font-semibold"
               style={{ color: 'var(--color-danger)', background: 'var(--color-surface-2)' }}
             >
-              Delete
+              {t('delete')}
             </button>
           </div>
         </>
@@ -141,7 +143,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
           <input
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Note"
+            placeholder={t('note')}
             className="field"
           />
           <button
@@ -149,7 +151,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
             className="rounded-xl py-3 font-bold"
             style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
           >
-            Save changes
+            {t('saveChanges')}
           </button>
         </>
       )}

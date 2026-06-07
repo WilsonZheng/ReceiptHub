@@ -2,11 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { listReceipts } from '../data/repo';
 import { receiptsToCsv, summarize } from '../lib/csv';
 import { formatNZD } from '../lib/money';
+import { useT, type MsgKey } from '../lib/i18n';
 import type { Receipt, Space } from '../data/types';
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 
-function preset(kind: 'thisMonth' | 'lastMonth' | 'last2Months'): { from: string; to: string } {
+type PresetKind = 'thisMonth' | 'lastMonth' | 'last2Months';
+
+function preset(kind: PresetKind): { from: string; to: string } {
   const now = new Date();
   const first = (y: number, m: number) => new Date(Date.UTC(y, m, 1));
   if (kind === 'thisMonth')
@@ -19,15 +22,16 @@ function preset(kind: 'thisMonth' | 'lastMonth' | 'last2Months'): { from: string
   return { from: iso(first(now.getUTCFullYear(), now.getUTCMonth() - 1)), to: iso(now) };
 }
 
-const PRESET_LABELS = {
-  thisMonth: 'This month',
-  lastMonth: 'Last month',
-  last2Months: 'Last 2 months',
-} as const;
+const PRESETS: { kind: PresetKind; labelKey: MsgKey }[] = [
+  { kind: 'thisMonth', labelKey: 'thisMonth' },
+  { kind: 'lastMonth', labelKey: 'lastMonth' },
+  { kind: 'last2Months', labelKey: 'last2Months' },
+];
 
 export function ExportScreen({ space }: { space: Space }) {
   const [{ from, to }, setRange] = useState(preset('last2Months'));
   const [receipts, setReceipts] = useState<Receipt[]>([]);
+  const t = useT();
 
   useEffect(() => {
     void listReceipts(space).then((rs) =>
@@ -49,14 +53,14 @@ export function ExportScreen({ space }: { space: Space }) {
   return (
     <div className="flex flex-col gap-3 py-2">
       <div className="flex gap-2 text-xs">
-        {(['thisMonth', 'lastMonth', 'last2Months'] as const).map((k) => (
+        {PRESETS.map((p) => (
           <button
-            key={k}
-            onClick={() => setRange(preset(k))}
+            key={p.kind}
+            onClick={() => setRange(preset(p.kind))}
             className="rounded-full px-3 py-1.5"
             style={{ background: 'var(--color-surface-2)' }}
           >
-            {PRESET_LABELS[k]}
+            {t(p.labelKey)}
           </button>
         ))}
       </div>
@@ -76,14 +80,14 @@ export function ExportScreen({ space }: { space: Space }) {
       </div>
       <div className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
         <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-          {s.count} receipts · {space}
+          {s.count} {t('receiptsUnit')} · {t(space)}
         </p>
         <p className="text-xl font-bold" style={{ fontFamily: 'var(--font-numeric)' }}>
           {formatNZD(s.totalCents)}
         </p>
         {space === 'company' && (
           <p className="text-sm" style={{ color: 'var(--color-accent)' }}>
-            GST {formatNZD(s.gstCents)} · Net {formatNZD(s.netCents)}
+            GST {formatNZD(s.gstCents)} · {t('net')} {formatNZD(s.netCents)}
           </p>
         )}
         <ul className="mt-2 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
@@ -101,7 +105,7 @@ export function ExportScreen({ space }: { space: Space }) {
         className="rounded-xl py-3 font-bold disabled:opacity-40"
         style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
       >
-        Download CSV
+        {t('downloadCsv')}
       </button>
     </div>
   );
