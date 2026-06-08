@@ -6,3 +6,10 @@ dist/
 coverage/
 playwright-report/
 test-results/
+
+# impeccable: 保留持久配置，忽略 live 会话/工作临时产物
+.impeccable/*
+!.impeccable/design.json
+!.impeccable/live/
+.impeccable/live/*
+!.impeccable/live/config.json

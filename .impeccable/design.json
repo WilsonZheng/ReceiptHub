@@ -1,0 +1,186 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-08",
+  "title": "Design System: ReceiptHub",
+  "extensions": {
+    "colorMeta": {
+      "aurora-green": {
+        "role": "primary",
+        "displayName": "Aurora Green",
+        "canonical": "#00ff66",
+        "lightValue": "#0f9d6a",
+        "tonalRamp": ["#002814", "#004d27", "#00733b", "#009950", "#00bf64", "#00ff66", "#5cff9a", "#a3ffc7", "#d6ffe6"]
+      },
+      "danger-rose": {
+        "role": "tertiary",
+        "displayName": "Danger Rose",
+        "canonical": "#ff4d6d",
+        "lightValue": "#d64545",
+        "tonalRamp": ["#330410", "#5c0a1e", "#85102d", "#ad1f43", "#d6395d", "#ff4d6d", "#ff8298", "#ffb3c1", "#ffdde3"]
+      },
+      "void-black": {
+        "role": "neutral",
+        "displayName": "Void Black",
+        "canonical": "#050505",
+        "lightValue": "#f2f2f7",
+        "tonalRamp": ["#050505", "#0c0c0c", "#161616", "#2a2a2a", "#444444", "#666666", "#888888", "#bbbbbb", "#ffffff"]
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "canonical": "#0c0c0c",
+        "lightValue": "#ffffff"
+      },
+      "surface-raised": {
+        "role": "neutral",
+        "displayName": "Surface Raised",
+        "canonical": "#161616",
+        "lightValue": "#e9e9ee"
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#ffffff",
+        "lightValue": "#1c1c1e"
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Ink Muted",
+        "canonical": "#888888",
+        "lightValue": "#8a8a8e"
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#ffffff1a",
+        "lightValue": "#e4e4e9"
+      }
+    },
+    "typographyMeta": {
+      "title": { "displayName": "Title", "purpose": "Screen titles and section headers; weight + size only, no tracked eyebrows." },
+      "body": { "displayName": "Body", "purpose": "Prose and field text; 16px hard floor for iOS." },
+      "label": { "displayName": "Label", "purpose": "Control labels, tab text, chips, captions." },
+      "numeric": { "displayName": "Numeric", "purpose": "Every monetary amount and GST figure; tabular monospace, color-tinted by direction." }
+    },
+    "shadows": [
+      { "name": "cta-glow", "value": "0 0 28px color-mix(in srgb, var(--color-accent) 28%, transparent)", "purpose": "The single neon halo; primary CTA only, removed when disabled." }
+    ],
+    "motion": [
+      { "name": "ios-spring", "value": "cubic-bezier(0.32, 0.72, 0, 1)", "purpose": "Default easing for screen/sheet/push transitions and press feedback (UIKit spring approximation)." },
+      { "name": "pop", "value": "cubic-bezier(0.34, 1.35, 0.46, 1)", "purpose": "Context-menu pop-in from an anchor (slight overshoot)." },
+      { "name": "press-scale", "value": "transform: scale(0.96)", "purpose": ":active feedback on every tappable element." },
+      { "name": "duration-fast", "value": "180ms", "purpose": "Press feedback." },
+      { "name": "duration-standard", "value": "320ms", "purpose": "Screen and sheet transitions." }
+    ],
+    "breakpoints": [
+      { "name": "mobile", "value": "<= 640px (primary target; installed PWA on iPhone)" },
+      { "name": "desktop", "value": "> 640px (review and export context)" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single glowing call-to-action (capture, extract, export, save).",
+      "html": "<button class=\"ds-btn-primary\">导出 CSV</button>",
+      "css": ".ds-btn-primary { background: var(--color-accent); color: var(--color-accent-ink); border: none; border-radius: 12px; padding: 12px 16px; font-weight: 700; font-size: 0.9375rem; box-shadow: 0 0 28px color-mix(in srgb, var(--color-accent) 28%, transparent); transition: transform 0.18s cubic-bezier(0.32,0.72,0,1), opacity 0.2s ease; cursor: pointer; } .ds-btn-primary:active { transform: scale(0.96); } .ds-btn-primary:disabled { opacity: 0.4; box-shadow: none; cursor: not-allowed; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "All secondary actions; never a bare text-link.",
+      "html": "<button class=\"ds-btn-secondary\">取消</button>",
+      "css": ".ds-btn-secondary { background: var(--color-surface-2); color: var(--color-ink); border: none; border-radius: 10px; padding: 8px 14px; font-weight: 600; font-size: 0.875rem; transition: transform 0.18s cubic-bezier(0.32,0.72,0,1); cursor: pointer; } .ds-btn-secondary:active { transform: scale(0.96); }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Alternate primary (e.g. a second capture path); accent text on a 1.5px accent border.",
+      "html": "<button class=\"ds-btn-outline\">从相册选择</button>",
+      "css": ".ds-btn-outline { background: transparent; color: var(--color-accent); border: 1.5px solid var(--color-accent); border-radius: 12px; padding: 12px 16px; font-weight: 700; font-size: 0.9375rem; transition: transform 0.18s cubic-bezier(0.32,0.72,0,1); cursor: pointer; } .ds-btn-outline:active { transform: scale(0.96); }"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Text input; 16px floor prevents iOS focus-zoom. Border shifts toward accent on focus.",
+      "html": "<input class=\"ds-field\" placeholder=\"商家名称\" />",
+      "css": ".ds-field { background: var(--color-surface); color: var(--color-ink); border: 1px solid var(--color-border); border-radius: 10px; padding: 10px 12px; font-size: 1rem; width: 100%; outline: none; transition: border-color 0.2s ease; } .ds-field::placeholder { color: var(--color-ink-muted); } .ds-field:focus { border-color: var(--color-accent); }"
+    },
+    {
+      "name": "Add Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Dashed 'add category' placeholder pill that becomes an inline input on tap.",
+      "html": "<button class=\"ds-chip-add\">＋ 新建</button>",
+      "css": ".ds-chip-add { background: transparent; color: var(--color-ink-muted); border: 1px dashed var(--color-ink-muted); border-radius: 9999px; padding: 4px 10px; font-size: 0.75rem; cursor: pointer; transition: transform 0.18s cubic-bezier(0.32,0.72,0,1); } .ds-chip-add:active { transform: scale(0.96); }"
+    },
+    {
+      "name": "Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "List row / grouped container; flat, hairline border, no shadow. Nested cards forbidden.",
+      "html": "<div class=\"ds-card\"><span>New World 超市</span><span class=\"ds-amount-neg\">−$42.50</span></div>",
+      "css": ".ds-card { background: var(--color-surface); color: var(--color-ink); border: 1px solid var(--color-border); border-radius: 12px; padding: 16px; display: flex; justify-content: space-between; align-items: center; } .ds-amount-neg { font-family: ui-monospace, 'SF Mono', monospace; font-weight: 600; color: var(--color-danger); }"
+    },
+    {
+      "name": "Glass Nav Dock",
+      "kind": "nav",
+      "refersTo": "nav",
+      "description": "Top-anchored frosted pill; active tab = accent fill, inactive = muted. Blur lives on a no-filter outer wrapper so popups escape the stacking context.",
+      "html": "<nav class=\"ds-nav\"><button class=\"ds-nav-item ds-nav-active\">📷 拍照</button><button class=\"ds-nav-item\">📋 列表</button><button class=\"ds-nav-item\">📊 统计</button><button class=\"ds-nav-item\">⋯</button></nav>",
+      "css": ".ds-nav { display: flex; align-items: center; gap: 4px; padding: 6px; border-radius: 16px; background: color-mix(in srgb, var(--color-bg) 72%, transparent); -webkit-backdrop-filter: blur(20px) saturate(1.4); backdrop-filter: blur(20px) saturate(1.4); border: 1px solid var(--color-border); } .ds-nav-item { flex: 1; border: none; background: transparent; color: var(--color-ink-muted); border-radius: 12px; padding: 8px; font-size: 0.75rem; font-weight: 600; cursor: pointer; } .ds-nav-active { background: var(--color-accent); color: var(--color-accent-ink); }"
+    },
+    {
+      "name": "Amount",
+      "kind": "custom",
+      "refersTo": "numeric",
+      "description": "The signature figure: monospace, sign-prefixed, tinted green (positive) or rose (negative).",
+      "html": "<div class=\"ds-amount-row\"><span class=\"ds-amount-pos\">+$1,240.00</span><span class=\"ds-gst\">GST $161.74 (× 3/23)</span></div>",
+      "css": ".ds-amount-row { display: flex; flex-direction: column; gap: 2px; } .ds-amount-pos { font-family: ui-monospace, 'SF Mono', monospace; font-weight: 600; font-size: 1.25rem; color: var(--color-accent); } .ds-gst { font-family: ui-monospace, 'SF Mono', monospace; font-size: 0.75rem; color: var(--color-ink-muted); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Midnight Ledger",
+    "overview": "A bookkeeper's ledger rendered for the dark: aurora-green figures ruled onto near-black, divided by hairlines rather than boxed in chrome. The system's job is to make a financial record feel correct — exact, legible, unhurried — and to disappear into the task of capturing and reconciling receipts. Restraint is the trust mechanism: a tool that touches tax earns confidence by being quiet and precise, not by being decorated. The default surface is near-pure black with a single living color (aurora green) reserved for what is active, primary, or positive; figures are monospace so money aligns like a statement; structure is hairlines, not shadows. A co-equal iOS-grouped light theme shares the same token contract.",
+    "keyCharacteristics": [
+      "Near-black canvas, one aurora-green accent used sparingly and meaningfully",
+      "Monospace for every figure; system sans for everything else",
+      "Flat by default — hairline borders carry all structure, shadows do not",
+      "Exactly one glow (the primary CTA) and one glass surface (the nav)",
+      "Calm density: one task per screen, breathing room over chrome",
+      "Two co-equal themes (dark Midnight Ledger / light iOS-grouped) on one token contract"
+    ],
+    "rules": [
+      { "name": "The Single Voice Rule", "body": "Aurora green appears on a small fraction of any screen and only with meaning: primary action, active selection, or a positive figure. The moment it decorates something neutral, it stops reading as 'this matters.'", "section": "colors" },
+      { "name": "The Green-In / Red-Out Rule", "body": "Income and positive net are aurora green; expense and negative deltas are danger rose. Color reinforces the +/- sign prefix — it never replaces it.", "section": "colors" },
+      { "name": "The 16px Floor Rule", "body": "No input font-size below 16px, ever. iOS Safari force-zooms the page when focusing a sub-16px field and never zooms back.", "section": "typography" },
+      { "name": "The Figures-in-Mono Rule", "body": "Money is always set in the numeric monospace font. A dollar amount in the body sans is a bug — columns won't align.", "section": "typography" },
+      { "name": "The Hairline Rule", "body": "Structure is drawn with 1px borders at white-10% (dark) / #e4e4e9 (light), not with shadows.", "section": "elevation" },
+      { "name": "The Single Glow Rule", "body": "Exactly one element glows (the primary CTA) and exactly one frosts (the nav). Any third glow or blur is a regression.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep aurora green rare and meaningful — primary action, active state, positive figures only.",
+      "Do set every monetary figure in the numeric monospace font, sign-prefixed and color-tinted by direction.",
+      "Do build structure from 1px hairlines and tonal steps; stay flat.",
+      "Do keep all input font-sizes >= 16px.",
+      "Do anchor navigation at the top and let only scrollable content touch the bottom edge.",
+      "Do reinforce income/expense with the +/- sign, not color alone.",
+      "Do give every interactive element the scale(0.96) press response on the shared iOS easing, with a prefers-reduced-motion fallback."
+    ],
+    "donts": [
+      "Don't look like enterprise accounting bloat (Xero / MYOB / QuickBooks): no toolbar-everywhere chrome, no intimidating multi-column forms.",
+      "Don't look like playful consumer fintech: no gradients, mascots, confetti, gamified streaks, or candy blobs.",
+      "Don't look like a generic admin template: no Material/Bootstrap card grids, no hero-metric tiles.",
+      "Don't look like skeuomorphic receipt kitsch: no faux thermal-paper texture, torn edges, or dot-matrix fonts.",
+      "Don't add a second glow or a second glass surface.",
+      "Don't use drop shadows for elevation — that's off-system.",
+      "Don't use background-clip:text gradient text, or border-left/right > 1px colored side-stripes.",
+      "Don't use the native date input (locale ignores page language); use the custom DateField.",
+      "Don't let aurora green decorate neutral content."
+    ]
+  }
+}

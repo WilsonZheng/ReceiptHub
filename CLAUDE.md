@@ -102,3 +102,18 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 - 设计 spec：`docs/superpowers/specs/2026-06-07-receipthub-design.md`（含已实现后的演进，以本文件和 git history 为准）
 - 实施计划（历史）：`docs/superpowers/plans/2026-06-07-receipthub.md`
 - 一键重建远程：`scripts/bootstrap-remote.sh`；图标再生成：`node scripts/gen-icons.mjs`
+
+## 设计上下文（impeccable）
+
+设计决策的权威来源是根目录两份文件——做任何 UI 改动前先读：
+
+- **`PRODUCT.md`**：战略层（register/用户/目的/品牌人格/反面参照/设计原则/无障碍）。
+- **`DESIGN.md`**：视觉层（Google Stitch 格式：token frontmatter + 六段正文）；边车 `.impeccable/design.json` 承载色阶/动效/组件片段，供 impeccable live 面板渲染。
+
+速记（细节以上述文件为准）：
+
+- **Register = product**（工具服务于任务，非营销页）。人格 = **「Calm financial trust」**：可信、清晰、克制；第一要务是**让用户相信数字是对的**。
+- **North Star =「Midnight Ledger」**：近纯黑底 + 唯一极光绿 `#00ff66`（仅用于主操作/选中态/正向金额）；金额一律 mono 字体 + 正负号 + 绿/红语义色；**结构靠 1px 发丝边框，不用阴影**；全站只有一处发光（主 CTA）+ 一处毛玻璃（顶部导航）。
+- **四条反面参照（明确否决）**：企业记账臃肿（Xero/MYOB）、玩味消费金融（渐变/吉祥物/彩纸）、通用后台模板（Material/Bootstrap 卡片网格）、拟物收据（仿热敏纸/撕边/点阵字）。
+- 无障碍目标 **WCAG AA**；收/支不可仅靠颜色区分（保留 `+`/`−` 号）。
+- impeccable 已装为项目级 skill（`.claude/skills/impeccable/`）：UI 设计/评审/打磨任务会自动触发，或用 `/impeccable <command>`（critique/polish/shape/harden/typeset/live…）。`.impeccable/` 为其会话工作目录。
