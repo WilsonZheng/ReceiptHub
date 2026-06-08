@@ -85,7 +85,8 @@ export default function App() {
         style={{
           background: 'var(--color-accent)',
           color: 'var(--color-accent-ink)',
-          boxShadow: '0 6px 20px rgba(61, 220, 151, 0.45)',
+          // 跟随 accent token（旧值 rgba(61,220,151) 是改版前的死绿 #3ddc97，与当前 #00ff66 不符）
+          boxShadow: '0 6px 20px color-mix(in srgb, var(--color-accent) 45%, transparent)',
         }}
       >
         ⟳ {t('updateReady')}

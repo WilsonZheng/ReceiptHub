@@ -233,6 +233,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
           <button
             key={k}
             onClick={() => setKind(k)}
+            aria-pressed={kind === k}
             className="rounded-full px-3 py-1.5 text-xs font-semibold"
             style={
               kind === k

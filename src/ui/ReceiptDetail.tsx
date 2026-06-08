@@ -161,6 +161,8 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
             inputMode="decimal"
             value={total}
             onChange={(e) => setTotal(e.target.value)}
+            placeholder={t('totalInclGst')}
+            aria-label={t('totalInclGst')}
             className="field"
           />
           <div className="flex gap-2">
@@ -171,6 +173,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
                   setKind(k);
                   setCategory('');
                 }}
+                aria-pressed={kind === k}
                 className="rounded-full px-3 py-1.5 text-xs font-semibold"
                 style={
                   kind === k

@@ -25,7 +25,9 @@
   --color-surface-2: #e9e9ee;
   --color-border: #e4e4e9;
   --color-ink: #1c1c1e;
-  --color-ink-muted: #8a8a8e;
+  /* #8a8a8e（iOS systemGray）在浅底上仅 ~3.1:1，不过 WCAG AA 正文 4.5:1；
+     压深到 #6b6b6b（分组底 4.8:1 / 纯白 5.3:1）达标。暗色 token 的 #888 落在近黑上 5.75:1 本就达标，不动。 */
+  --color-ink-muted: #6b6b6b;
   --color-accent: #0f9d6a;
   --color-accent-ink: #ffffff;
   --color-danger: #d64545;
