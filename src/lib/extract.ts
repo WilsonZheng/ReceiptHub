@@ -7,6 +7,9 @@ import type { Kind, PhotoKind } from '../data/types';
 
 const MODEL = 'gemini-2.5-flash';
 const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+const MAX_ATTEMPTS = 3;
+const RETRY_DELAYS_MS = [0, 450, 1200];
+const REQUEST_TIMEOUT_MS = 45_000;
 
 export type ExtractReason = 'auth' | 'rate_limit' | 'network' | 'parse';
 
@@ -66,6 +69,47 @@ function buildPrompt(categories: Record<Kind, string[]>, locale: Locale): string
 
 const MAX_FILES = 4; // 防 payload 过大；一张票据极少超过 4 页/张
 
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function isTransientStatus(status: number): boolean {
+  return (
+    status === 408 ||
+    status === 425 ||
+    status === 500 ||
+    status === 502 ||
+    status === 503 ||
+    status === 504
+  );
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function postGemini(apiKey: string, body: string): Promise<Response> {
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    if (attempt > 0) await delay(RETRY_DELAYS_MS[attempt]);
+    try {
+      const res = await fetchWithTimeout(ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        body,
+      });
+      if (isTransientStatus(res.status) && attempt < MAX_ATTEMPTS - 1) continue;
+      return res;
+    } catch {
+      if (attempt === MAX_ATTEMPTS - 1) throw new ExtractError('network');
+    }
+  }
+  throw new ExtractError('network');
+}
+
 export async function extractReceipt(
   files: { blob: Blob; kind: PhotoKind }[],
   opts: ExtractOpts,
@@ -78,27 +122,21 @@ export async function extractReceipt(
       },
     })),
   );
-  let res: Response;
-  try {
-    res = await fetch(ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': opts.apiKey },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [...inlineParts, { text: buildPrompt(opts.categories, opts.locale) }],
-          },
-        ],
-        generationConfig: {
-          response_mime_type: 'application/json',
-          response_schema: RESPONSE_SCHEMA,
-          temperature: 0,
-        },
-      }),
-    });
-  } catch {
-    throw new ExtractError('network');
-  }
+
+  const body = JSON.stringify({
+    contents: [
+      {
+        parts: [...inlineParts, { text: buildPrompt(opts.categories, opts.locale) }],
+      },
+    ],
+    generationConfig: {
+      response_mime_type: 'application/json',
+      response_schema: RESPONSE_SCHEMA,
+      temperature: 0,
+    },
+  });
+
+  const res = await postGemini(opts.apiKey, body);
   if (res.status === 429) throw new ExtractError('rate_limit');
   if (res.status === 400 || res.status === 401 || res.status === 403)
     throw new ExtractError('auth');

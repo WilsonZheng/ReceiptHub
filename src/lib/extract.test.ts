@@ -73,6 +73,31 @@ describe('extractReceipt', () => {
     expect(JSON.stringify(body)).toContain('Fuel'); // 分类列表进了提示词
   });
 
+  it('retries a transient browser network failure before showing an error', async () => {
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new TypeError('Load failed'))
+      .mockResolvedValueOnce(geminiReply({ merchant: 'Retry Cafe', total: 12.5 }));
+
+    const r = await extractReceipt([file], OPTS);
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(r.merchant).toBe('Retry Cafe');
+    expect(r.totalCents).toBe(1250);
+  });
+
+  it('retries transient Gemini 5xx responses before surfacing network failure', async () => {
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('{}', { status: 503 }))
+      .mockResolvedValueOnce(geminiReply({ merchant: 'Recovered Store' }));
+
+    const r = await extractReceipt([file], OPTS);
+
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(r.merchant).toBe('Recovered Store');
+  });
+
   it('unknown category becomes a proposal (newCategory), invalid date dropped', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       geminiReply({ merchant: 'X', date: 'last tuesday', total: 10, category: 'Pet Supplies' }),
@@ -131,18 +156,24 @@ describe('extractReceipt', () => {
   });
 
   it('throws typed error on 429 rate limit', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 429 }));
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 429 }));
     await expect(extractReceipt([file], OPTS)).rejects.toMatchObject({
       name: 'ExtractError',
       reason: 'rate_limit',
     });
+    expect(spy).toHaveBeenCalledTimes(1);
     expect(new ExtractError('rate_limit').reason).toBe('rate_limit');
   });
 
   it('throws typed error on bad key', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{}', { status: 400 }));
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response('{}', { status: 400 }));
     await expect(extractReceipt([file], { ...OPTS, apiKey: 'bad' })).rejects.toMatchObject({
       reason: 'auth',
     });
+    expect(spy).toHaveBeenCalledTimes(1);
   });
 });

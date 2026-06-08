@@ -294,7 +294,7 @@ test('ai extract: upload → button → form filled → save', async ({ page }) 
     await chooserPromise
   ).setFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: PNG });
 
-  await page.getByRole('button', { name: '✨ AI fill' }).click();
+  await page.getByRole('button', { name: 'AI fill' }).click();
   // 表单被自动填入
   await expect(page.getByPlaceholder('Merchant')).toHaveValue('Pak n Save');
   await expect(page.getByPlaceholder('Total (incl. GST)')).toHaveValue('57.80');
