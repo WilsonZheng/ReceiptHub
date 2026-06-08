@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { liveQuery } from 'dexie';
+import { Eye, EyeOff, ExternalLink, RefreshCw, X } from 'lucide-react';
 import { db } from '../data/db';
 import {
   addCategoryToConfig,
@@ -21,7 +22,7 @@ function Pill({ active, label, onClick }: { active: boolean; label: string; onCl
   return (
     <button
       onClick={onClick}
-      className="rounded-full px-3 py-1.5 text-xs font-semibold"
+      className="segmented-btn"
       style={
         active
           ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
@@ -82,8 +83,8 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
   ];
 
   return (
-    <div className="flex flex-col gap-4 py-2 text-sm">
-      <section className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
+    <div className="screen-wrap grid gap-4 py-2 text-sm lg:grid-cols-2 lg:items-start">
+      <section className="panel panel-pad">
         <h3 className="font-bold">{t('preferences')}</h3>
         <div className="mt-2 flex items-center justify-between">
           <span style={{ color: 'var(--color-ink-muted)' }}>{t('language')}</span>
@@ -113,12 +114,12 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
         </div>
       </section>
 
-      <section className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
+      <section className="panel panel-pad">
         <h3 className="font-bold">{t('aiTitle')}</h3>
         <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
           {t('aiHint')}
         </p>
-        <div className="mt-2 flex gap-2">
+        <div className="mt-2 grid grid-cols-[1fr_auto_auto] gap-2">
           <input
             type={showAiKey ? 'text' : 'password'}
             value={aiKey}
@@ -129,9 +130,13 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
           <button
             onClick={() => setShowAiKey(!showAiKey)}
             aria-label="toggle key visibility"
-            className="btn-secondary"
+            className="btn-secondary px-3"
           >
-            {showAiKey ? '🙈' : '👁'}
+            {showAiKey ? (
+              <EyeOff className="icon" aria-hidden="true" />
+            ) : (
+              <Eye className="icon" aria-hidden="true" />
+            )}
           </button>
           <button
             onClick={() => {
@@ -159,7 +164,7 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
         )}
       </section>
 
-      <section className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
+      <section className="panel panel-pad">
         <h3 className="font-bold">{t('sync')}</h3>
         <p style={{ color: 'var(--color-ink-muted)' }}>
           {t(`status_${status}`)} · {pending} {t('pendingUnit')} · {counts.receipts}{' '}
@@ -167,6 +172,7 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
         </p>
         <div className="mt-2 flex gap-2">
           <button onClick={() => void syncNow()} className="btn-secondary">
+            <RefreshCw className="icon" aria-hidden="true" />
             {t('syncNow')}
           </button>
           <a
@@ -175,14 +181,14 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
             target="_blank"
             rel="noreferrer"
           >
-            {t('dataRepo')} ↗
+            {t('dataRepo')} <ExternalLink className="icon" aria-hidden="true" />
           </a>
         </div>
       </section>
 
       {/* 分类管理：公司 / 个人 各自独立卡片，组尾 ＋ 就地添加 */}
       {(['company', 'personal'] as const).map((sp) => (
-        <section key={sp} className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
+        <section key={sp} className="panel panel-pad">
           <h3 className="font-bold">
             {t('categories')} · {t(sp)}
           </h3>
@@ -198,12 +204,16 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
                 {config.categories[sp][k].map((c) => (
                   <span
                     key={c}
-                    className="rounded-full px-2.5 py-1 text-xs"
+                    className="chip-btn inline-flex items-center gap-1"
                     style={{ background: 'var(--color-surface-2)' }}
                   >
                     {categoryLabel(c, locale)}{' '}
-                    <button onClick={() => removeCategory(sp, k, c)} aria-label={`Remove ${c}`}>
-                      ✕
+                    <button
+                      onClick={() => removeCategory(sp, k, c)}
+                      aria-label={`Remove ${c}`}
+                      className="-mr-1 flex h-6 w-6 items-center justify-center rounded-full"
+                    >
+                      <X className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   </span>
                 ))}
@@ -214,14 +224,14 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
         </section>
       ))}
 
-      <section className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
+      <section className="panel panel-pad">
         <h3 className="font-bold">{t('access')}</h3>
         <button
           onClick={() => {
             clearPat();
             onPatCleared();
           }}
-          className="mt-2 rounded-lg px-3 py-1.5"
+          className="btn-secondary mt-2"
           style={{ color: 'var(--color-danger)', background: 'var(--color-surface-2)' }}
         >
           {t('clearPat')}

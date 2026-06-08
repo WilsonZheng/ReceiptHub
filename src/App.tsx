@@ -104,7 +104,7 @@ export default function App() {
 
   return (
     <div
-      className="app-shell mx-auto flex max-w-lg flex-col"
+      className="app-shell mx-auto flex w-full max-w-5xl flex-col"
       style={{
         // 刘海/灵动岛安全区：PWA 全屏模式下 header 不被状态栏压住
         paddingTop: 'env(safe-area-inset-top)',
@@ -124,11 +124,11 @@ export default function App() {
           </button>
         </div>
       )}
-      <header className="flex items-center justify-between px-4 py-3">
-        <h1 className="text-xl font-black italic tracking-tighter">
+      <header className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6">
+        <h1 className="shrink-0 text-xl font-black italic tracking-tighter sm:text-2xl">
           ReceiptHub<span style={{ color: 'var(--color-accent)' }}>.</span>
         </h1>
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <SyncDot />
           <SpaceToggle space={space} onChange={setSpace} />
         </div>
@@ -139,7 +139,7 @@ export default function App() {
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={() => void onTouchEnd()}
-        className="flex-1 overflow-y-auto overscroll-contain px-4 pb-[env(safe-area-inset-bottom)]"
+        className="flex-1 overflow-y-auto overscroll-contain px-4 pb-[env(safe-area-inset-bottom)] sm:px-6"
       >
         {/* 下拉刷新指示器：随下拉距离展开，触发后转圈 */}
         <div

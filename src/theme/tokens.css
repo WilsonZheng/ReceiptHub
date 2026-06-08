@@ -13,6 +13,8 @@
   --color-accent: #00ff66;
   --color-accent-ink: #000000;
   --color-danger: #ff4d6d;
+  --color-danger-ink: #ffffff;
+  --color-warning: #f0b429;
   --font-display: -apple-system, system-ui, sans-serif;
   --font-numeric: ui-monospace, 'SF Mono', monospace;
   --radius-card: 12px;
@@ -31,4 +33,6 @@
   --color-accent: #0f9d6a;
   --color-accent-ink: #ffffff;
   --color-danger: #d64545;
+  --color-danger-ink: #ffffff;
+  --color-warning: #8a5a00;
 }

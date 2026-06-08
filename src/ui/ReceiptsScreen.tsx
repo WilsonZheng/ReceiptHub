@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { liveQuery } from 'dexie';
 import { db } from '../data/db';
 import { buildIndex, searchReceipts } from '../data/search';
+import { summarize } from '../lib/csv';
 import { formatNZD } from '../lib/money';
 import { useLocale, useT } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
@@ -42,23 +43,24 @@ export function ReceiptsScreen({ space }: { space: Space }) {
     }
     return [...groups.entries()];
   }, [visible]);
+  const visibleSummary = useMemo(() => summarize(visible), [visible]);
 
   if (openId) return <ReceiptDetail id={openId} onClose={() => setOpenId(null)} />;
 
   return (
-    <div className="flex flex-col gap-2 py-2">
+    <div className="screen-wrap flex max-w-3xl flex-col gap-3 py-2">
       <input
         placeholder={t('searchPlaceholder')}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         className="field"
       />
-      <div className="flex gap-1.5 text-xs font-semibold">
+      <div className="segmented-row">
         {(['all', 'expense', 'income'] as const).map((k) => (
           <button
             key={k}
             onClick={() => setKindFilter(k)}
-            className="rounded-full px-3 py-1"
+            className="segmented-btn"
             style={
               kindFilter === k
                 ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
@@ -69,22 +71,31 @@ export function ReceiptsScreen({ space }: { space: Space }) {
           </button>
         ))}
       </div>
+      {visible.length > 0 && (
+        <div className="panel grid grid-cols-2 gap-3 px-4 py-3">
+          <div>
+            <p className="section-title">{t('expense')}</p>
+            <p className="amount text-lg font-bold" style={{ color: 'var(--color-danger)' }}>
+              {formatNZD(visibleSummary.expense.totalCents)}
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="section-title">{t('income')}</p>
+            <p className="amount text-lg font-bold" style={{ color: 'var(--color-accent)' }}>
+              {formatNZD(visibleSummary.income.totalCents)}
+            </p>
+          </div>
+        </div>
+      )}
       {byMonth.map(([month, recs]) => (
         <section key={month}>
-          <h3
-            className="py-1 text-[10px] font-bold tracking-widest"
-            style={{ color: 'var(--color-ink-muted)' }}
-          >
-            {formatMonth(month, locale)}
-          </h3>
+          <h3 className="section-title py-1">{formatMonth(month, locale)}</h3>
           {recs.map((r, i) => (
             <button
               key={r.id}
               onClick={() => setOpenId(r.id)}
-              className="row-in mb-1.5 flex w-full items-center justify-between rounded-xl p-3 text-left"
+              className="panel row-in mb-2 flex min-h-20 w-full items-center justify-between p-3 text-left sm:p-4"
               style={{
-                background: 'var(--color-surface)',
-                border: '1px solid var(--color-border)',
                 animationDelay: `${Math.min(i, 8) * 28}ms`, // 进场微错峰
               }}
             >
@@ -102,7 +113,7 @@ export function ReceiptsScreen({ space }: { space: Space }) {
                   {formatDate(r.date, locale)} · {categoryLabel(r.category, locale)}
                 </span>
               </span>
-              <span className="shrink-0 text-right" style={{ fontFamily: 'var(--font-numeric)' }}>
+              <span className="amount shrink-0 text-right">
                 {/* 收入绿色带 +，支出红色带 −：一眼区分方向 */}
                 <span
                   className="block text-sm font-bold"

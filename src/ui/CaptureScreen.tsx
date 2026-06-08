@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Camera, Sparkles, UploadCloud } from 'lucide-react';
 import { processFile, type ProcessedFile } from '../lib/image';
 import { clearDraft, emptyDraft, getDraft, isDraftDirty, setDraft } from '../lib/draft';
 import { localToday } from '../lib/dates';
@@ -185,7 +186,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
   }
 
   return (
-    <div className="flex flex-col gap-3 py-2">
+    <div className="screen-wrap grid gap-3 py-2 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
       <input
         ref={cameraRef}
         type="file"
@@ -209,80 +210,85 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         }}
       />
 
-      <button
-        onClick={() => cameraRef.current?.click()}
-        className="rounded-xl py-10 text-lg font-bold"
-        style={{ background: 'var(--color-surface)', border: '1px dashed var(--color-border)' }}
-      >
-        {t('takePhoto')}
-      </button>
-      <button onClick={() => libraryRef.current?.click()} className="btn-secondary w-full">
-        {t('uploadLabel')}
-        <span className="hidden sm:inline">{t('uploadDesktopHint')}</span>
-      </button>
-      {/* iOS 的「浏览」即系统 Files：Google Drive/Dropbox 等都是其官方接入方 */}
-      <p
-        className="-mt-1 text-center text-[10px] sm:hidden"
-        style={{ color: 'var(--color-ink-muted)' }}
-      >
-        {t('driveHint')}
-      </p>
+      <div className="flex flex-col gap-3">
+        <button
+          onClick={() => cameraRef.current?.click()}
+          className="panel flex min-h-36 flex-col items-center justify-center gap-3 border-dashed py-10 text-lg font-bold"
+        >
+          <Camera className="h-8 w-8" aria-hidden="true" />
+          {t('takePhoto')}
+        </button>
+        <button onClick={() => libraryRef.current?.click()} className="btn-secondary w-full">
+          <UploadCloud className="icon-lg" aria-hidden="true" />
+          {t('uploadLabel')}
+          <span className="hidden sm:inline">{t('uploadDesktopHint')}</span>
+        </button>
+        {/* iOS 的「浏览」即系统 Files：Google Drive/Dropbox 等都是其官方接入方 */}
+        <p
+          className="-mt-1 text-center text-xs sm:hidden"
+          style={{ color: 'var(--color-ink-muted)' }}
+        >
+          {t('driveHint')}
+        </p>
 
-      <div className="flex gap-2">
-        {(['expense', 'income'] as const).map((k) => (
-          <button
-            key={k}
-            onClick={() => setKind(k)}
-            aria-pressed={kind === k}
-            className="rounded-full px-3 py-1.5 text-xs font-semibold"
-            style={
-              kind === k
-                ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
-                : { background: 'var(--color-surface-2)', color: 'var(--color-ink-muted)' }
-            }
-          >
-            {t(k)}
-          </button>
-        ))}
-      </div>
-
-      {files.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto">
-          {files.map((f, i) => (
-            <div
-              key={i}
-              role="button"
-              tabIndex={0}
-              onClick={() =>
-                f.kind === 'pdf' ? window.open(URL.createObjectURL(f.full)) : setPreview(f)
+        <div className="segmented-row">
+          {(['expense', 'income'] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => setKind(k)}
+              aria-pressed={kind === k}
+              className="segmented-btn"
+              style={
+                kind === k
+                  ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
+                  : { background: 'var(--color-surface-2)', color: 'var(--color-ink-muted)' }
               }
-              className="relative h-16 w-16 shrink-0 cursor-pointer overflow-hidden rounded-lg"
-              style={{ background: 'var(--color-surface-2)' }}
             >
-              {f.kind === 'pdf' ? (
-                <span className="flex h-full items-center justify-center text-xs">PDF</span>
-              ) : (
-                <img
-                  src={URL.createObjectURL(f.thumb ?? f.full)}
-                  className="h-full w-full object-cover"
-                  alt=""
-                />
-              )}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setFiles(files.filter((_, j) => j !== i));
-                }}
-                className="absolute right-0 top-0 rounded-bl-lg px-1.5 py-0.5 text-xs"
-                style={{ background: 'rgba(0,0,0,.55)', color: '#fff' }}
-                aria-label={t('removeFile')}
-              >
-                ✕
-              </button>
-            </div>
+              {t(k)}
+            </button>
           ))}
         </div>
-      )}
+
+        {files.length > 0 && (
+          <div className="panel flex gap-2 overflow-x-auto p-2">
+            {files.map((f, i) => (
+              <div
+                key={i}
+                role="button"
+                tabIndex={0}
+                onClick={() =>
+                  f.kind === 'pdf' ? window.open(URL.createObjectURL(f.full)) : setPreview(f)
+                }
+                className="relative h-16 w-16 shrink-0 cursor-pointer overflow-hidden rounded-xl sm:h-20 sm:w-20"
+                style={{ background: 'var(--color-surface-2)' }}
+              >
+                {f.kind === 'pdf' ? (
+                  <span className="flex h-full items-center justify-center text-xs font-bold">
+                    PDF
+                  </span>
+                ) : (
+                  <img
+                    src={URL.createObjectURL(f.thumb ?? f.full)}
+                    className="h-full w-full object-cover"
+                    alt=""
+                  />
+                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFiles(files.filter((_, j) => j !== i));
+                  }}
+                  className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
+                  style={{ background: 'rgba(0,0,0,.62)', color: 'var(--color-danger-ink)' }}
+                  aria-label={t('removeFile')}
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* 点缩略图全屏预览，点任意处关闭 */}
       {preview && (
@@ -299,120 +305,129 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         </div>
       )}
       {/* 有照片且配了 key 才出现：一键 AI 识别填表 */}
-      {files.length > 0 && aiKey && (
-        <button
-          onClick={() => void handleExtract()}
-          disabled={extracting}
-          className="rounded-xl py-2.5 text-sm font-bold disabled:opacity-60"
-          style={{
-            border: '1.5px solid var(--color-accent)',
-            color: 'var(--color-accent)',
-            background: 'transparent',
-          }}
-        >
-          {extracting ? t('aiExtracting') : t('aiExtract')}
-        </button>
-      )}
-
-      {error && (
-        <p className="text-xs" style={{ color: 'var(--color-danger)' }}>
-          {error}
-        </p>
-      )}
-
-      <DateField value={date} onChange={setDate} />
-      <input
-        list="merchants"
-        placeholder={t('merchant')}
-        value={merchant}
-        onChange={(e) => setMerchant(e.target.value)}
-        className="field"
-      />
-      <datalist id="merchants">
-        {merchants.map((m) => (
-          <option key={m} value={m} />
-        ))}
-      </datalist>
-      <input
-        inputMode="decimal"
-        placeholder={t('totalInclGst')}
-        value={total}
-        onChange={(e) => {
-          setTotal(e.target.value);
-          setGstOverride(null);
-        }}
-        className="field"
-      />
-
-      {space === 'company' && totalCents !== null && (
-        <div
-          className="flex items-center justify-between text-sm"
-          style={{ color: 'var(--color-ink-muted)' }}
-        >
-          <span style={{ fontFamily: 'var(--font-numeric)' }}>GST {formatNZD(gstCents)}</span>
+      <div className="flex flex-col gap-3">
+        {files.length > 0 && aiKey && (
           <button
-            onClick={() => setGstOverride(gstOverride === 0 ? null : 0)}
-            className="underline"
+            onClick={() => void handleExtract()}
+            disabled={extracting}
+            className="btn-secondary w-full"
+            style={{
+              borderColor: 'var(--color-accent)',
+              color: 'var(--color-accent)',
+              background: 'transparent',
+            }}
           >
-            {gstOverride === 0 ? t('gstAuto') : t('noGst')}
+            <Sparkles className="icon" aria-hidden="true" />
+            {extracting ? t('aiExtracting') : t('aiExtract')}
           </button>
-        </div>
-      )}
+        )}
 
-      <div className="flex flex-wrap gap-2">
-        {categories.map((c) => (
-          <button
-            key={c}
-            onClick={() => setCategory(c)}
-            className="rounded-full px-3 py-1.5 text-xs font-medium"
-            style={
-              category === c
-                ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
-                : { background: 'var(--color-surface-2)', color: 'var(--color-ink-muted)' }
-            }
-          >
-            {categoryLabel(c, locale)}
-          </button>
-        ))}
-        <AddChip
-          onAdd={(name) => {
-            const next = addCategoryToConfig(space, kind, name);
-            setCategory(canonicalCategory(next, space, kind, name));
-          }}
+        {error && (
+          <p className="panel px-3 py-2 text-sm" style={{ color: 'var(--color-danger)' }}>
+            {error}
+          </p>
+        )}
+
+        <DateField value={date} onChange={setDate} />
+        <input
+          list="merchants"
+          placeholder={t('merchant')}
+          value={merchant}
+          onChange={(e) => setMerchant(e.target.value)}
+          className="field"
         />
-      </div>
+        <datalist id="merchants">
+          {merchants.map((m) => (
+            <option key={m} value={m} />
+          ))}
+        </datalist>
+        <input
+          inputMode="decimal"
+          placeholder={t('totalInclGst')}
+          value={total}
+          onChange={(e) => {
+            setTotal(e.target.value);
+            setGstOverride(null);
+          }}
+          className="field amount"
+        />
 
-      <textarea
-        placeholder={t('itemsPlaceholder')}
-        value={items}
-        onChange={(e) => setItems(e.target.value)}
-        rows={Math.min(6, Math.max(2, items.split('\n').length))}
-        className="field resize-none"
-      />
-      <textarea
-        placeholder={t('noteOptional')}
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        rows={Math.min(4, Math.max(1, note.split('\n').length))}
-        className="field resize-none"
-      />
-      <button
-        disabled={!canSave}
-        onClick={() => void handleSave()}
-        className="btn-glow rounded-xl py-3 font-bold disabled:opacity-40 disabled:shadow-none"
-        style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
-      >
-        {t('save')}
-      </button>
-      {isDraftDirty({ files, date, merchant, total, kind, category, items, note, gstOverride }) && (
+        {space === 'company' && totalCents !== null && (
+          <div className="panel flex items-center justify-between px-3 py-2 text-sm muted">
+            <span className="amount">GST {formatNZD(gstCents)} · × 3/23</span>
+            <button
+              onClick={() => setGstOverride(gstOverride === 0 ? null : 0)}
+              className="btn-secondary min-h-9 px-3 py-1 text-xs"
+            >
+              {gstOverride === 0 ? t('gstAuto') : t('noGst')}
+            </button>
+          </div>
+        )}
+
+        <div className="flex flex-wrap gap-2">
+          {categories.map((c) => (
+            <button
+              key={c}
+              onClick={() => setCategory(c)}
+              className="chip-btn"
+              style={
+                category === c
+                  ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
+                  : { background: 'var(--color-surface-2)', color: 'var(--color-ink-muted)' }
+              }
+            >
+              {categoryLabel(c, locale)}
+            </button>
+          ))}
+          <AddChip
+            onAdd={(name) => {
+              const next = addCategoryToConfig(space, kind, name);
+              setCategory(canonicalCategory(next, space, kind, name));
+            }}
+          />
+        </div>
+
+        <textarea
+          placeholder={t('itemsPlaceholder')}
+          value={items}
+          onChange={(e) => setItems(e.target.value)}
+          rows={Math.min(6, Math.max(2, items.split('\n').length))}
+          className="field resize-none"
+        />
+        <textarea
+          placeholder={t('noteOptional')}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={Math.min(4, Math.max(1, note.split('\n').length))}
+          className="field resize-none"
+        />
         <button
-          onClick={discard}
-          className="self-center text-xs underline"
-          style={{ color: 'var(--color-ink-muted)' }}
+          disabled={!canSave}
+          onClick={() => void handleSave()}
+          className="btn-primary btn-glow w-full disabled:opacity-40 disabled:shadow-none"
         >
-          {t('discardDraft')}
+          {t('save')}
         </button>
-      )}
+        {isDraftDirty({
+          files,
+          date,
+          merchant,
+          total,
+          kind,
+          category,
+          items,
+          note,
+          gstOverride,
+        }) && (
+          <button
+            onClick={discard}
+            className="self-center text-xs underline"
+            style={{ color: 'var(--color-ink-muted)' }}
+          >
+            {t('discardDraft')}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

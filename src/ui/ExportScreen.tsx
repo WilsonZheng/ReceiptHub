@@ -88,15 +88,15 @@ export function ExportScreen({ space }: { space: Space }) {
   }
 
   return (
-    <div className="flex flex-col gap-3 py-2">
-      <div className="flex flex-wrap gap-1.5 text-xs">
+    <div className="screen-wrap flex max-w-3xl flex-col gap-3 py-2">
+      <div className="flex flex-wrap gap-1.5">
         {PRESETS.map((p) => {
           const active = 'kind' in sel && sel.kind === p.kind;
           return (
             <button
               key={p.kind}
               onClick={() => setSel({ kind: p.kind })}
-              className="rounded-full px-3 py-1.5 font-semibold"
+              className="segmented-btn"
               style={
                 active
                   ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
@@ -112,7 +112,7 @@ export function ExportScreen({ space }: { space: Space }) {
         <DateField value={from} onChange={(v) => setSel({ from: v, to })} />
         <DateField value={to} onChange={(v) => setSel({ from, to: v })} />
       </div>
-      <div className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
+      <div className="panel panel-pad">
         <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
           {from} → {to} · {t(space)}
         </p>
@@ -120,10 +120,7 @@ export function ExportScreen({ space }: { space: Space }) {
           <span className="text-sm">
             {t('expense')} ({s.expense.count})
           </span>
-          <span
-            className="text-xl font-bold"
-            style={{ fontFamily: 'var(--font-numeric)', color: 'var(--color-danger)' }}
-          >
+          <span className="amount text-2xl font-bold" style={{ color: 'var(--color-danger)' }}>
             -{formatNZD(s.expense.totalCents)}
           </span>
         </div>
@@ -131,19 +128,38 @@ export function ExportScreen({ space }: { space: Space }) {
           <span className="text-sm">
             {t('income')} ({s.income.count})
           </span>
-          <span
-            className="text-xl font-bold"
-            style={{ fontFamily: 'var(--font-numeric)', color: 'var(--color-accent)' }}
-          >
+          <span className="amount text-2xl font-bold" style={{ color: 'var(--color-accent)' }}>
             +{formatNZD(s.income.totalCents)}
           </span>
         </div>
         {space === 'company' && (
-          <p className="mt-1 text-sm" style={{ color: 'var(--color-accent)' }}>
-            {t('gstPaid')} {formatNZD(s.expense.gstCents)} · {t('gstCollected')}{' '}
-            {formatNZD(s.income.gstCents)} · {t('netGst')}{' '}
-            {formatNZD(s.income.gstCents - s.expense.gstCents)}
-          </p>
+          <div
+            className="mt-3 grid gap-1 border-t pt-3 text-sm"
+            style={{ borderColor: 'var(--color-border)' }}
+          >
+            <div className="flex justify-between gap-3">
+              <span className="muted">{t('gstPaid')}</span>
+              <span className="amount">{formatNZD(s.expense.gstCents)}</span>
+            </div>
+            <div className="flex justify-between gap-3">
+              <span className="muted">{t('gstCollected')}</span>
+              <span className="amount">{formatNZD(s.income.gstCents)}</span>
+            </div>
+            <div className="flex justify-between gap-3 font-bold">
+              <span>{t('netGst')} </span>
+              <span
+                className="amount"
+                style={{
+                  color:
+                    s.income.gstCents - s.expense.gstCents >= 0
+                      ? 'var(--color-accent)'
+                      : 'var(--color-danger)',
+                }}
+              >
+                {formatNZD(s.income.gstCents - s.expense.gstCents)}
+              </span>
+            </div>
+          </div>
         )}
         {(
           [
@@ -159,7 +175,7 @@ export function ExportScreen({ space }: { space: Space }) {
                     {categoryLabel(c, locale)}
                     {k === 'income' ? ` · ${t('income')}` : ''}
                   </span>
-                  <span style={{ fontFamily: 'var(--font-numeric)' }}>{formatNZD(cents)}</span>
+                  <span className="amount">{formatNZD(cents)}</span>
                 </li>
               ))}
             </ul>
@@ -169,8 +185,7 @@ export function ExportScreen({ space }: { space: Space }) {
       <button
         onClick={download}
         disabled={s.expense.count + s.income.count === 0}
-        className="rounded-xl py-3 font-bold disabled:opacity-40"
-        style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
+        className="btn-primary btn-glow w-full disabled:opacity-40 disabled:shadow-none"
       >
         {t('downloadCsv')}
       </button>

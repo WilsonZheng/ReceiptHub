@@ -9,7 +9,7 @@ export function SpaceToggle({ space, onChange }: { space: Space; onChange: (s: S
         <button
           key={s}
           onClick={() => onChange(s)}
-          className="rounded-full px-3 py-1 text-xs font-semibold"
+          className="min-h-9 rounded-full px-3 py-1 text-xs font-bold sm:min-h-10 sm:px-4 sm:text-sm"
           style={
             space === s
               ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }

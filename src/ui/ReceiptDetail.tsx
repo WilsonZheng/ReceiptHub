@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ChevronLeft, ExternalLink, FileText, Pencil, Trash2 } from 'lucide-react';
 import { db, type PhotoRow } from '../data/db';
 import { softDeleteReceipt, updateReceipt } from '../data/repo';
 import { formatNZD, gstFromTotalCents, parseNZD } from '../lib/money';
@@ -70,25 +71,23 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
   }
 
   return (
-    <div className="push-in flex flex-col gap-3 py-2">
+    <div className="screen-wrap push-in flex max-w-3xl flex-col gap-3 py-2">
       <button onClick={onClose} className="btn-secondary self-start">
+        <ChevronLeft className="icon" aria-hidden="true" />
         {t('back')}
       </button>
       {photos.map((p) => (
-        <div
-          key={p.id}
-          className="overflow-hidden rounded-xl"
-          style={{ background: 'var(--color-surface)' }}
-        >
+        <div key={p.id} className="panel overflow-hidden">
           {p.kind === 'pdf' ? (
             <div className="flex justify-center p-4">
               <a
-                className="btn-secondary inline-block"
+                className="btn-secondary inline-flex"
                 href={URL.createObjectURL(p.full)}
                 target="_blank"
                 rel="noreferrer"
               >
-                📄 {t('openPdf')} ↗
+                <FileText className="icon" aria-hidden="true" />
+                {t('openPdf')} <ExternalLink className="icon" aria-hidden="true" />
               </a>
             </div>
           ) : (
@@ -98,12 +97,11 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
       ))}
       {!editing ? (
         <>
-          <div className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
+          <div className="panel panel-pad">
             <p className="text-lg font-bold">{receipt.merchant}</p>
             <p
-              className="text-2xl font-bold"
+              className="amount text-3xl font-bold"
               style={{
-                fontFamily: 'var(--font-numeric)',
                 color: kindOf(receipt) === 'income' ? 'var(--color-accent)' : 'var(--color-danger)',
               }}
             >
@@ -134,16 +132,18 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
           <div className="flex gap-2">
             <button
               onClick={() => setEditing(true)}
-              className="flex-1 rounded-xl py-2 font-semibold"
+              className="btn-secondary flex-1"
               style={{ background: 'var(--color-surface-2)' }}
             >
+              <Pencil className="icon" aria-hidden="true" />
               {t('edit')}
             </button>
             <button
               onClick={() => void handleDelete()}
-              className="flex-1 rounded-xl py-2 font-semibold"
+              className="btn-secondary flex-1"
               style={{ color: 'var(--color-danger)', background: 'var(--color-surface-2)' }}
             >
+              <Trash2 className="icon" aria-hidden="true" />
               {t('delete')}
             </button>
           </div>
@@ -163,9 +163,9 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
             onChange={(e) => setTotal(e.target.value)}
             placeholder={t('totalInclGst')}
             aria-label={t('totalInclGst')}
-            className="field"
+            className="field amount"
           />
-          <div className="flex gap-2">
+          <div className="segmented-row">
             {(['expense', 'income'] as const).map((k) => (
               <button
                 key={k}
@@ -174,7 +174,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
                   setCategory('');
                 }}
                 aria-pressed={kind === k}
-                className="rounded-full px-3 py-1.5 text-xs font-semibold"
+                className="segmented-btn"
                 style={
                   kind === k
                     ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
@@ -190,7 +190,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
               <button
                 key={c}
                 onClick={() => setCategory(c)}
-                className="rounded-full px-3 py-1.5 text-xs"
+                className="chip-btn"
                 style={
                   category === c
                     ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
@@ -222,11 +222,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
             rows={Math.min(4, Math.max(1, note.split('\n').length))}
             className="field resize-none"
           />
-          <button
-            onClick={() => void handleSave()}
-            className="rounded-xl py-3 font-bold"
-            style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
-          >
+          <button onClick={() => void handleSave()} className="btn-primary btn-glow w-full">
             {t('saveChanges')}
           </button>
         </>

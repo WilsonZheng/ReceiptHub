@@ -29,11 +29,9 @@ function Card({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-xl p-4" style={{ background: 'var(--color-surface)' }}>
+    <section className="panel panel-pad">
       <div className="mb-2 flex items-center justify-between">
-        <h3 className="text-xs font-bold tracking-wide" style={{ color: 'var(--color-ink-muted)' }}>
-          {title}
-        </h3>
+        <h3 className="section-title">{title}</h3>
         {right}
       </div>
       {children}
@@ -158,14 +156,14 @@ export function DashboardScreen({ space }: { space: Space }) {
   }
 
   return (
-    <div className="flex flex-col gap-3 py-2">
+    <div className="screen-wrap flex flex-col gap-3 py-2">
       {/* 范围筛选 */}
-      <div className="flex gap-1.5">
+      <div className="grid grid-cols-4 gap-1.5">
         {RANGES.map((r) => (
           <button
             key={r.id}
             onClick={() => setRange(r.id)}
-            className="flex-1 rounded-full px-2 py-1.5 text-xs font-semibold"
+            className="segmented-btn px-2 text-xs sm:text-sm"
             style={
               range === r.id
                 ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
