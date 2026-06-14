@@ -33,6 +33,10 @@ function fakeClient(remote: Map<string, { text: string; sha: number }>) {
       return String(sha);
     }),
     putRaw: vi.fn(async () => 'photosha'),
+    getSha: vi.fn(async (p: string) => {
+      const f = remote.get(p);
+      return f ? String(f.sha) : null;
+    }),
     listDir: vi.fn(async (p: string) =>
       [...remote.keys()]
         .filter((k) => k.startsWith(p + '/'))
@@ -80,6 +84,22 @@ describe('flushOutbox', () => {
     expect(ops).toHaveLength(1);
     expect(ops[0].attempts).toBe(1);
     expect(ops[0].lastError).toContain('network down');
+  });
+
+  it('treats an already uploaded photo as synced when retrying a stale outbox op', async () => {
+    const remote = new Map<string, { text: string; sha: number }>();
+    const receipt = await saveReceipt(input);
+    const photo = (await db.photos.toArray())[0];
+    remote.set(`photos/${receipt.id}/${photo.id}.webp`, { text: 'already uploaded', sha: 1 });
+    const client = fakeClient(remote);
+    (client.putRaw as ReturnType<typeof vi.fn>).mockRejectedValue(new ConflictError('exists'));
+
+    await flushOutbox(client);
+
+    expect(client.putRaw).not.toHaveBeenCalled();
+    expect(await db.outbox.count()).toBe(0);
+    expect((await db.photos.get(photo.id))?.synced).toBe(1);
+    expect(JSON.parse(remote.get('company/2026-06.json')!.text)).toHaveLength(1);
   });
 });
 

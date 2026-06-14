@@ -30,6 +30,17 @@ describe('getFile', () => {
   });
 });
 
+describe('getSha', () => {
+  it('returns only the sha for an existing path', async () => {
+    mockFetch(200, { content: '', sha: 'photosha' });
+    expect(await client().getSha('photos/r/p.webp')).toBe('photosha');
+  });
+  it('returns null on 404', async () => {
+    mockFetch(404, { message: 'Not Found' });
+    expect(await client().getSha('missing.webp')).toBeNull();
+  });
+});
+
 describe('putFile', () => {
   it('PUTs base64 content with sha and returns new sha', async () => {
     const spy = mockFetch(200, { content: { sha: 'new' } });

@@ -41,11 +41,13 @@ export async function flushOutbox(client: GithubClient): Promise<void> {
         const photo = await db.photos.get(op.refId);
         if (photo) {
           const ext = photo.kind === 'pdf' ? 'pdf' : photo.kind;
-          await client.putRaw(
-            `photos/${photo.receiptId}/${photo.id}.${ext}`,
-            await toBase64(photo.full),
-            { message: `photo: ${photo.id}` },
-          );
+          const path = `photos/${photo.receiptId}/${photo.id}.${ext}`;
+          const existingSha = await client.getSha(path);
+          if (!existingSha) {
+            await client.putRaw(path, await toBase64(photo.full), {
+              message: `photo: ${photo.id}`,
+            });
+          }
           await db.photos.update(op.refId, { synced: 1 });
         }
       } else {

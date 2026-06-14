@@ -55,6 +55,14 @@ export class GithubClient {
     return { text: fromBase64(json.content), sha: json.sha };
   }
 
+  async getSha(path: string): Promise<string | null> {
+    const res = await this.req(path);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`github GET ${path}: ${res.status}`);
+    const json = (await res.json()) as { sha: string };
+    return json.sha;
+  }
+
   async putRaw(
     path: string,
     base64: string,
