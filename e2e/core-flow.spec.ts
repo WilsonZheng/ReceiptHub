@@ -251,11 +251,11 @@ test('capture draft survives tab switches and can be discarded', async ({ page }
   await page.getByRole('button', { name: 'Receipts' }).click();
   await page.getByRole('button', { name: 'Capture' }).click();
   await expect(page.getByPlaceholder('Merchant')).toHaveValue('Draft Cafe');
-  await expect(page.locator('[role="button"].h-16')).toBeVisible(); // 照片缩略图还在
+  await expect(page.getByRole('button', { name: 'Preview photo' })).toBeVisible(); // 照片缩略图还在
   // 丢弃草稿
   await page.getByRole('button', { name: 'Discard draft' }).click();
   await expect(page.getByPlaceholder('Merchant')).toHaveValue('');
-  await expect(page.locator('[role="button"].h-16')).not.toBeVisible();
+  await expect(page.getByRole('button', { name: 'Preview photo' })).not.toBeVisible();
 });
 
 test('ai extract: upload → button → form filled → save', async ({ page }) => {
@@ -326,11 +326,25 @@ test('capture thumbnail opens fullscreen preview', async ({ page }) => {
   await (
     await chooserPromise
   ).setFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: PNG });
-  await page.locator('[role="button"].h-16').click(); // 点缩略图
+  await page.getByRole('button', { name: 'Preview photo' }).click(); // 点缩略图
   const overlay = page.locator('.fixed.inset-0.z-50');
   await expect(overlay).toBeVisible();
   await overlay.click(); // 点任意处关闭
   await expect(overlay).not.toBeVisible();
+});
+
+test('take photo opens cropper and applies crop', async ({ page }) => {
+  const chooserPromise = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Take photo' }).click();
+  await (
+    await chooserPromise
+  ).setFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: PNG });
+  await expect(page.getByRole('heading', { name: 'Crop photo' })).toBeVisible();
+  await expect(page.locator('.crop-frame')).toBeVisible();
+  await page.getByRole('button', { name: 'Apply crop' }).click();
+  await expect(page.getByRole('heading', { name: 'Crop photo' })).not.toBeVisible();
+  await expect(page.getByRole('button', { name: 'Crop photo', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Preview photo' })).toBeVisible();
 });
 
 test('inline category add: tap + chip, type, enter — usable in capture', async ({ page }) => {

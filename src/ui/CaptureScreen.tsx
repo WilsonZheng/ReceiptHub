@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Sparkles, UploadCloud } from 'lucide-react';
+import { Camera, Crop as CropIcon, Sparkles, UploadCloud } from 'lucide-react';
 import { processFile, type ProcessedFile } from '../lib/image';
 import { clearDraft, emptyDraft, getDraft, isDraftDirty, setDraft } from '../lib/draft';
 import { localToday } from '../lib/dates';
@@ -12,6 +12,7 @@ import { categoryLabel } from '../lib/categories';
 import { saveReceipt } from '../data/repo';
 import { db } from '../data/db';
 import { DateField } from './components/DateField';
+import { ImageCropper } from './components/ImageCropper';
 import type { Kind, Space } from '../data/types';
 
 export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () => void }) {
@@ -32,6 +33,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState<ProcessedFile | null>(null);
+  const [cropIndex, setCropIndex] = useState<number | null>(null);
   const [extracting, setExtracting] = useState(false);
   const t = useT();
   const locale = useLocale();
@@ -93,11 +95,14 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
     };
   }, []);
 
-  async function addFiles(list: File[]) {
+  async function addFiles(list: File[], opts: { openCrop?: boolean } = {}) {
     if (!list.length) return;
     try {
       const processed = await Promise.all(list.map(processFile));
+      const firstImage = processed.findIndex((f) => f.kind !== 'pdf');
+      const startIndex = files.length;
       setFiles((cur) => [...cur, ...processed]);
+      if (opts.openCrop && firstImage >= 0) setCropIndex(startIndex + firstImage);
       setError('');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'file processing failed');
@@ -144,6 +149,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
 
   const categories = getConfig().categories[space][kind];
   const aiKey = getAiKey();
+  const cropFile = cropIndex !== null ? files[cropIndex] : null;
 
   // 用原图（非缩略图）送 Gemini：分辨率决定识别质量
   async function handleExtract() {
@@ -194,7 +200,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         capture="environment"
         hidden
         onChange={(e) => {
-          void addFiles([...(e.target.files ?? [])]);
+          void addFiles([...(e.target.files ?? [])], { openCrop: true });
           e.target.value = '';
         }}
       />
@@ -254,28 +260,33 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
             {files.map((f, i) => (
               <div
                 key={i}
-                role="button"
-                tabIndex={0}
-                onClick={() =>
-                  f.kind === 'pdf' ? window.open(URL.createObjectURL(f.full)) : setPreview(f)
-                }
                 className="relative h-16 w-16 shrink-0 cursor-pointer overflow-hidden rounded-xl sm:h-20 sm:w-20"
                 style={{ background: 'var(--color-surface-2)' }}
               >
-                {f.kind === 'pdf' ? (
-                  <span className="flex h-full items-center justify-center text-xs font-bold">
-                    PDF
-                  </span>
-                ) : (
-                  <img
-                    src={URL.createObjectURL(f.thumb ?? f.full)}
-                    className="h-full w-full object-cover"
-                    alt=""
-                  />
-                )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    f.kind === 'pdf' ? window.open(URL.createObjectURL(f.full)) : setPreview(f)
+                  }
+                  className="h-full w-full"
+                  aria-label={f.kind === 'pdf' ? t('openPdf') : t('previewPhoto')}
+                >
+                  {f.kind === 'pdf' ? (
+                    <span className="flex h-full items-center justify-center text-xs font-bold">
+                      PDF
+                    </span>
+                  ) : (
+                    <img
+                      src={URL.createObjectURL(f.thumb ?? f.full)}
+                      className="h-full w-full object-cover"
+                      alt=""
+                    />
+                  )}
+                </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (cropIndex === i) setCropIndex(null);
                     setFiles(files.filter((_, j) => j !== i));
                   }}
                   className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold"
@@ -284,6 +295,19 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
                 >
                   ✕
                 </button>
+                {f.kind !== 'pdf' && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCropIndex(i);
+                    }}
+                    className="absolute bottom-1 left-1 flex h-7 w-7 items-center justify-center rounded-full"
+                    style={{ background: 'rgba(0,0,0,.62)', color: '#fff' }}
+                    aria-label={t('cropPhoto')}
+                  >
+                    <CropIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -303,6 +327,17 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
             alt=""
           />
         </div>
+      )}
+      {cropFile && cropFile.kind !== 'pdf' && (
+        <ImageCropper
+          file={cropFile}
+          onCancel={() => setCropIndex(null)}
+          onApply={(next) => {
+            setFiles((cur) => cur.map((f, i) => (i === cropIndex ? next : f)));
+            setCropIndex(null);
+            setError('');
+          }}
+        />
       )}
       {/* 有照片且配了 key 才出现：一键 AI 识别填表 */}
       <div className="flex flex-col gap-3">
