@@ -100,6 +100,15 @@ export function ImageCropper({ file, onCancel, onApply }: ImageCropperProps) {
     return () => URL.revokeObjectURL(next);
   }, [file]);
 
+  // Esc 取消裁剪（全屏覆盖层的退出路径）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
   useEffect(() => {
     const el = stageRef.current;
     if (!el) return;

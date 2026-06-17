@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { liveQuery } from 'dexie';
+import { Camera } from 'lucide-react';
 import { db } from '../data/db';
 import { summarize } from '../lib/csv';
 import { formatNZD } from '../lib/money';
@@ -39,8 +40,9 @@ function Card({
   );
 }
 
-export function DashboardScreen({ space }: { space: Space }) {
+export function DashboardScreen({ space, onCapture }: { space: Space; onCapture: () => void }) {
   const [all, setAll] = useState<Receipt[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [range, setRange] = useState<Range>('all'); // 默认：全部票据统计
   const [selMonth, setSelMonth] = useState<string | null>(null); // 点击趋势柱聚焦某月
   const [expandedCat, setExpandedCat] = useState<string | null>(null); // 分类下钻
@@ -49,7 +51,10 @@ export function DashboardScreen({ space }: { space: Space }) {
 
   useEffect(() => {
     const sub = liveQuery(() => db.receipts.toArray()).subscribe({
-      next: (rs) => setAll(rs.filter((r) => !r.deleted)),
+      next: (rs) => {
+        setAll(rs.filter((r) => !r.deleted));
+        setLoaded(true);
+      },
     });
     return () => sub.unsubscribe();
   }, []);
@@ -147,11 +152,36 @@ export function DashboardScreen({ space }: { space: Space }) {
     [scoped, curYm, prevYm],
   );
 
+  // 首帧异步加载：骨架卡占位，避免"还没有数据"误闪
+  if (!loaded) {
+    return (
+      <div className="screen-wrap flex flex-col gap-3 py-2" aria-hidden="true">
+        <div className="skeleton h-9 w-full" />
+        <div className="panel panel-pad flex flex-col gap-3">
+          <div className="skeleton h-8 w-40 self-end" />
+          <div className="skeleton h-5 w-28 self-end" />
+        </div>
+        <div className="panel panel-pad">
+          <div className="skeleton h-24 w-full" />
+        </div>
+      </div>
+    );
+  }
+
   if (scoped.length === 0) {
     return (
-      <p className="py-12 text-center text-sm" style={{ color: 'var(--color-ink-muted)' }}>
-        {t('noData')}
-      </p>
+      <div className="flex flex-col items-center gap-4 py-12 text-center">
+        <span className="panel flex h-14 w-14 items-center justify-center rounded-2xl">
+          <Camera className="h-6 w-6" style={{ color: 'var(--color-accent)' }} aria-hidden="true" />
+        </span>
+        <p className="max-w-xs text-sm" style={{ color: 'var(--color-ink-muted)' }}>
+          {t('noDataHint')}
+        </p>
+        <button onClick={onCapture} className="btn-primary btn-glow px-6">
+          <Camera className="icon" aria-hidden="true" />
+          {t('goCaptureCta')}
+        </button>
+      </div>
     );
   }
 
@@ -236,7 +266,7 @@ export function DashboardScreen({ space }: { space: Space }) {
           selMonth && (
             <button
               onClick={() => setSelMonth(null)}
-              className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+              className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
               style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
             >
               {formatMonth(selMonth, locale)} ✕
@@ -250,7 +280,7 @@ export function DashboardScreen({ space }: { space: Space }) {
             return (
               <button
                 key={m.month}
-                aria-label={m.month}
+                aria-label={`${formatMonth(m.month, locale)}: ${t('expense')} ${formatNZD(m.expenseCents)}, ${t('income')} ${formatNZD(m.incomeCents)}`}
                 onClick={() => {
                   setSelMonth(selMonth === m.month ? null : m.month);
                   setExpandedCat(null);
@@ -277,7 +307,7 @@ export function DashboardScreen({ space }: { space: Space }) {
                   />
                 </div>
                 <span
-                  className="text-[9px] font-semibold"
+                  className="text-[10px] font-semibold"
                   style={{
                     color: selMonth === m.month ? 'var(--color-accent)' : 'var(--color-ink-muted)',
                   }}
@@ -308,7 +338,7 @@ export function DashboardScreen({ space }: { space: Space }) {
             return (
               <div key={k} className="mb-2 last:mb-0">
                 <p
-                  className="mb-1 text-[10px] font-semibold"
+                  className="mb-1 text-[11px] font-semibold"
                   style={{ color: 'var(--color-ink-muted)' }}
                 >
                   {t(k)}

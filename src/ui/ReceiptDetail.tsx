@@ -22,6 +22,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
   const [note, setNote] = useState('');
   const [itemsText, setItemsText] = useState('');
   const [kind, setKind] = useState<Kind>('expense');
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const t = useT();
   const locale = useLocale();
 
@@ -64,10 +65,8 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
   }
 
   async function handleDelete() {
-    if (confirm(t('deleteConfirm'))) {
-      await softDeleteReceipt(id);
-      onClose();
-    }
+    await softDeleteReceipt(id);
+    onClose();
   }
 
   return (
@@ -129,24 +128,47 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
               </p>
             )}
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setEditing(true)}
-              className="btn-secondary flex-1"
-              style={{ background: 'var(--color-surface-2)' }}
-            >
-              <Pencil className="icon" aria-hidden="true" />
-              {t('edit')}
-            </button>
-            <button
-              onClick={() => void handleDelete()}
-              className="btn-secondary flex-1"
-              style={{ color: 'var(--color-danger)', background: 'var(--color-surface-2)' }}
-            >
-              <Trash2 className="icon" aria-hidden="true" />
-              {t('delete')}
-            </button>
-          </div>
+          {!confirmingDelete ? (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setEditing(true)}
+                className="btn-secondary flex-1"
+                style={{ background: 'var(--color-surface-2)' }}
+              >
+                <Pencil className="icon" aria-hidden="true" />
+                {t('edit')}
+              </button>
+              <button
+                onClick={() => setConfirmingDelete(true)}
+                className="btn-secondary flex-1"
+                style={{ color: 'var(--color-danger)', background: 'var(--color-surface-2)' }}
+              >
+                <Trash2 className="icon" aria-hidden="true" />
+                {t('delete')}
+              </button>
+            </div>
+          ) : (
+            // 就地确认：取消保持中性默认，确认删除用 danger 实底标注不可逆
+            <div className="panel panel-pad flex flex-col gap-2">
+              <p className="text-sm font-semibold">{t('deleteConfirm')}</p>
+              <div className="flex gap-2">
+                <button onClick={() => setConfirmingDelete(false)} className="btn-secondary flex-1">
+                  {t('cancel')}
+                </button>
+                <button
+                  onClick={() => void handleDelete()}
+                  className="btn-secondary flex-1"
+                  style={{
+                    background: 'var(--color-danger)',
+                    color: 'var(--color-danger-ink)',
+                  }}
+                >
+                  <Trash2 className="icon" aria-hidden="true" />
+                  {t('confirmDelete')}
+                </button>
+              </div>
+            </div>
+          )}
         </>
       ) : (
         <>

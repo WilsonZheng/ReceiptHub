@@ -100,9 +100,9 @@ test('detail edit and soft delete', async ({ page }) => {
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByText('Z Energy Penrose')).toBeVisible();
 
-  page.on('dialog', (d) => void d.accept());
   await page.getByText('Z Energy Penrose').click();
-  await page.getByRole('button', { name: 'Delete' }).click();
+  await page.getByRole('button', { name: 'Delete', exact: true }).click(); // 露出就地确认
+  await page.getByRole('button', { name: 'Confirm delete' }).click();
   await expect(page.getByText('No receipts yet')).toBeVisible();
 
   // 删除后设置页计数应为 0（墓碑不计入）
@@ -148,7 +148,7 @@ test('theme and language switching persists', async ({ page }) => {
 
 test('income entry: own categories, + in list, gst nets off in export', async ({ page }) => {
   await addReceipt(page, 'Office Rent', '115.00', 'Other'); // 支出 GST 15.00
-  await page.getByRole('button', { name: 'Capture' }).click();
+  await page.getByRole('button', { name: 'Capture', exact: true }).click();
   await page.getByRole('button', { name: 'Income', exact: true }).click();
   // 收入分类替换了支出分类
   await expect(page.getByRole('button', { name: 'Sales', exact: true })).toBeVisible();
@@ -202,9 +202,12 @@ test('dashboard: range filters, net balance, tappable trend, category drill-down
   await page.getByRole('button', { name: 'This month', exact: true }).click();
   await expect(page.getByText('Mitre 10')).toBeVisible();
   // 点击趋势柱聚焦当月 → 选中胶囊出现，再点 ✕ 清除
+  // 趋势柱的可访问名是本地化月份（含金额），en-NZ 下为 "June 2026"
   const now = new Date();
-  const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  await page.getByRole('button', { name: ym, exact: true }).click();
+  const monthName = new Intl.DateTimeFormat('en-NZ', { year: 'numeric', month: 'long' }).format(
+    now,
+  );
+  await page.getByRole('button', { name: monthName }).first().click();
   await expect(page.getByRole('button', { name: /✕/ })).toBeVisible();
   await page.getByRole('button', { name: /✕/ }).click();
   await expect(page.getByRole('button', { name: /✕/ })).not.toBeVisible();
@@ -249,7 +252,7 @@ test('capture draft survives tab switches and can be discarded', async ({ page }
   ).setFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: PNG });
   // 切走再切回——草稿（含照片）完好
   await page.getByRole('button', { name: 'Receipts' }).click();
-  await page.getByRole('button', { name: 'Capture' }).click();
+  await page.getByRole('button', { name: 'Capture', exact: true }).click();
   await expect(page.getByPlaceholder('Merchant')).toHaveValue('Draft Cafe');
   await expect(page.getByRole('button', { name: 'Preview photo' })).toBeVisible(); // 照片缩略图还在
   // 丢弃草稿
@@ -353,7 +356,7 @@ test('inline category add: tap + chip, type, enter — usable in capture', async
   await page.getByPlaceholder('New category').fill('Insurance');
   await page.getByPlaceholder('New category').press('Enter');
   await expect(page.getByText('Insurance')).toBeVisible(); // chip 即时出现
-  await page.getByRole('button', { name: 'Capture' }).click();
+  await page.getByRole('button', { name: 'Capture', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Insurance', exact: true })).toBeVisible();
 
   // 拍照页同样可就地添加并自动选中
@@ -367,7 +370,7 @@ test('space toggle separates company and personal', async ({ page }) => {
   await addReceipt(page, 'Company Store', '100.00', 'Other');
   // 切到 personal
   await page.getByRole('button', { name: 'personal' }).click();
-  await page.getByRole('button', { name: 'Capture' }).click();
+  await page.getByRole('button', { name: 'Capture', exact: true }).click();
   await addReceipt(page, 'Personal Shop', '50.00', 'Other');
   await expect(page.getByText('Personal Shop')).toBeVisible();
   await expect(page.getByText('Company Store')).not.toBeVisible(); // 列表严格跟随右上角空间

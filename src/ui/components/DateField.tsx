@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocale, useT } from '../../lib/i18n';
 import { formatDate, formatMonth, localToday } from '../../lib/dates';
 import { addMonths, monthGrid, weekdayLabels } from '../../lib/calendar';
@@ -14,6 +14,16 @@ export function DateField({ value, onChange }: { value: string; onChange: (iso: 
   const t = useT();
 
   const todayIso = localToday();
+
+  // Esc 关闭抽屉（键盘用户的退出路径）
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open]);
 
   function show() {
     setViewYm(value.slice(0, 7));

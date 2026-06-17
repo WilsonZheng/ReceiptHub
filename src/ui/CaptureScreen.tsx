@@ -77,6 +77,16 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
     setError('');
   }
 
+  // 全屏预览：Esc 关闭（桌面键盘用户的退出路径）
+  useEffect(() => {
+    if (!preview) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPreview(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [preview]);
+
   // 桌面: 拖拽 + ⌘V 粘贴
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => void addFiles([...(e.clipboardData?.files ?? [])]);
@@ -116,6 +126,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
   async function handleSave() {
     if (!canSave || totalCents === null) return;
     setSaving(true);
+    setError('');
     try {
       await saveReceipt({
         space,
@@ -142,6 +153,9 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       setGstOverride(null);
       setDate(localToday());
       onSaved();
+    } catch {
+      // 写库失败（配额/Blob 处理等）不再静默吞掉——明确告知可重试
+      setError(t('saveErr'));
     } finally {
       setSaving(false);
     }
@@ -441,8 +455,14 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
           onClick={() => void handleSave()}
           className="btn-primary btn-glow w-full disabled:opacity-40 disabled:shadow-none"
         >
-          {t('save')}
+          {saving ? t('saving') : t('save')}
         </button>
+        {/* 禁用时点了没反应最劝退——明说差什么才能存（仅在已开始录入时提示） */}
+        {!canSave && !saving && files.length > 0 && (
+          <p className="-mt-1 text-center text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+            {t('saveHint')}
+          </p>
+        )}
         {isDraftDirty({
           files,
           date,

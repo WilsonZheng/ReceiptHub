@@ -129,7 +129,7 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
           />
           <button
             onClick={() => setShowAiKey(!showAiKey)}
-            aria-label="toggle key visibility"
+            aria-label={t('toggleKeyVisibility')}
             className="btn-secondary px-3"
           >
             {showAiKey ? (

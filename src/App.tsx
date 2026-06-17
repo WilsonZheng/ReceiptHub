@@ -164,8 +164,10 @@ export default function App() {
         {/* key 驱动 Tab 切换动画：每次换屏重新触发 screen-in */}
         <div key={tab} className="screen-in">
           {tab === 'capture' && <CaptureScreen space={space} onSaved={() => setTab('receipts')} />}
-          {tab === 'receipts' && <ReceiptsScreen space={space} />}
-          {tab === 'stats' && <DashboardScreen space={space} />}
+          {tab === 'receipts' && (
+            <ReceiptsScreen space={space} onCapture={() => setTab('capture')} />
+          )}
+          {tab === 'stats' && <DashboardScreen space={space} onCapture={() => setTab('capture')} />}
           {tab === 'export' && <ExportScreen space={space} />}
           {tab === 'settings' && <SettingsScreen onPatCleared={() => setUnlocked(false)} />}
         </div>
