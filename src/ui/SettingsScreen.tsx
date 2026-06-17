@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { liveQuery } from 'dexie';
-import { Eye, EyeOff, ExternalLink, RefreshCw, X } from 'lucide-react';
+import { Eye, EyeOff, ExternalLink, Languages, RefreshCw, X } from 'lucide-react';
 import { db } from '../data/db';
 import {
   addCategoryToConfig,
@@ -8,12 +8,13 @@ import {
   getAiKey,
   getConfig,
   setAiKey,
+  setCategoryLabel,
   setConfig,
   DATA_REPO,
 } from '../lib/settings';
 import { AddChip } from './components/AddChip';
 import { setLocale, useLocale, useT, type Locale } from '../lib/i18n';
-import { categoryLabel } from '../lib/categories';
+import { categoryLabel, isBuiltinCategory } from '../lib/categories';
 import { setTheme, useTheme, type Theme } from '../lib/theme';
 import { syncNow, useSyncStatus } from '../sync/useSync';
 import type { AppConfig, Kind, Space } from '../data/types';
@@ -41,6 +42,9 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
   const [aiKey, setAiKeyLocal] = useState(getAiKey() ?? '');
   const [aiSaved, setAiSaved] = useState(false);
   const [showAiKey, setShowAiKey] = useState(false);
+  // 自定义分类的双语译名就地编辑：一次编辑一个，editingLabel 存 canonical key
+  const [editingLabel, setEditingLabel] = useState<string | null>(null);
+  const [labelDraft, setLabelDraft] = useState('');
   const locale = useLocale();
   const theme = useTheme();
   const t = useT();
@@ -58,6 +62,16 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
 
   function addCategory(space: Space, kind: Kind, name: string) {
     setLocalConfig(addCategoryToConfig(space, kind, name));
+  }
+  // 打开/提交"当前语言下的显示名"编辑：改的是显示层，canonical key 不动
+  function openLabelEditor(cat: string) {
+    setEditingLabel(cat);
+    setLabelDraft(config.labels?.[cat]?.[locale] ?? '');
+  }
+  function commitLabel() {
+    if (editingLabel) setLocalConfig(setCategoryLabel(editingLabel, locale, labelDraft));
+    setEditingLabel(null);
+    setLabelDraft('');
   }
   function removeCategory(space: Space, kind: Kind, cat: string) {
     const next: AppConfig = {
@@ -202,20 +216,56 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
               </p>
               <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                 {config.categories[sp][k].map((c) => (
-                  <span
-                    key={c}
-                    className="chip-btn inline-flex items-center gap-1"
-                    style={{ background: 'var(--color-surface-2)' }}
-                  >
-                    {categoryLabel(c, locale)}{' '}
-                    <button
-                      onClick={() => removeCategory(sp, k, c)}
-                      aria-label={`Remove ${c}`}
-                      className="-mr-1 flex h-6 w-6 items-center justify-center rounded-full"
+                  <Fragment key={c}>
+                    <span
+                      className="chip-btn inline-flex items-center gap-1"
+                      style={{ background: 'var(--color-surface-2)' }}
                     >
-                      <X className="h-3.5 w-3.5" aria-hidden="true" />
-                    </button>
-                  </span>
+                      {categoryLabel(c, locale, config.labels)}{' '}
+                      {/* 内置分类天然双语；自定义分类才需用户补当前语言的显示名 */}
+                      {!isBuiltinCategory(c) && (
+                        <button
+                          onClick={() => (editingLabel === c ? commitLabel() : openLabelEditor(c))}
+                          aria-label={t('setDisplayName')}
+                          className="flex h-6 w-6 items-center justify-center rounded-full"
+                          style={editingLabel === c ? { color: 'var(--color-accent)' } : undefined}
+                        >
+                          <Languages className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => removeCategory(sp, k, c)}
+                        aria-label={`Remove ${c}`}
+                        className="-mr-1 flex h-6 w-6 items-center justify-center rounded-full"
+                      >
+                        <X className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    </span>
+                    {editingLabel === c && (
+                      <input
+                        autoFocus
+                        value={labelDraft}
+                        onChange={(e) => setLabelDraft(e.target.value)}
+                        onBlur={commitLabel}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') commitLabel();
+                          if (e.key === 'Escape') {
+                            setEditingLabel(null);
+                            setLabelDraft('');
+                          }
+                        }}
+                        placeholder={t('displayNameIn')}
+                        aria-label={t('setDisplayName')}
+                        className="min-h-10 w-40 rounded-full px-3 text-base"
+                        style={{
+                          background: 'var(--color-surface-2)',
+                          border: '1px solid var(--color-accent)',
+                          outline: 'none',
+                          color: 'var(--color-ink)',
+                        }}
+                      />
+                    )}
+                  </Fragment>
                 ))}
                 <AddChip onAdd={(name) => addCategory(sp, k, name)} />
               </div>

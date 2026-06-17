@@ -43,6 +43,8 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
 
   if (!receipt) return null;
 
+  const catLabels = getConfig().labels;
+
   async function handleSave() {
     const totalCents = parseNZD(total);
     if (totalCents === null || !receipt) return;
@@ -108,8 +110,9 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
               {formatNZD(receipt.totalCents)}
             </p>
             <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-              {formatDate(receipt.date, locale)} · {categoryLabel(receipt.category, locale)} ·{' '}
-              {t(kindOf(receipt))} · {t(receipt.space)}
+              {formatDate(receipt.date, locale)} ·{' '}
+              {categoryLabel(receipt.category, locale, catLabels)} · {t(kindOf(receipt))} ·{' '}
+              {t(receipt.space)}
               {receipt.space === 'company' && ` · GST ${formatNZD(receipt.gstCents)}`}
             </p>
             {receipt.items && receipt.items.length > 0 && (
@@ -219,7 +222,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
                     : { background: 'var(--color-surface-2)' }
                 }
               >
-                {categoryLabel(c, locale)}
+                {categoryLabel(c, locale, catLabels)}
               </button>
             ))}
             <AddChip

@@ -5,6 +5,7 @@ import { formatNZD } from '../lib/money';
 import { localToday } from '../lib/dates';
 import { useLocale, useT, type MsgKey } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
+import { getConfig } from '../lib/settings';
 import { DateField } from './components/DateField';
 import type { Receipt, Space } from '../data/types';
 
@@ -52,6 +53,7 @@ export function ExportScreen({ space }: { space: Space }) {
   const [allReceipts, setAllReceipts] = useState<Receipt[]>([]);
   const t = useT();
   const locale = useLocale();
+  const catLabels = useMemo(() => getConfig().labels, []);
 
   useEffect(() => {
     void listReceipts(space).then(setAllReceipts);
@@ -172,7 +174,7 @@ export function ExportScreen({ space }: { space: Space }) {
               {Object.entries(side.byCategory).map(([c, cents]) => (
                 <li key={c} className="flex justify-between">
                   <span>
-                    {categoryLabel(c, locale)}
+                    {categoryLabel(c, locale, catLabels)}
                     {k === 'income' ? ` · ${t('income')}` : ''}
                   </span>
                   <span className="amount">{formatNZD(cents)}</span>

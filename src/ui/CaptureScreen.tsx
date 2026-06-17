@@ -161,7 +161,9 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
     }
   }
 
-  const categories = getConfig().categories[space][kind];
+  const cfg = getConfig();
+  const categories = cfg.categories[space][kind];
+  const catLabels = cfg.labels;
   const aiKey = getAiKey();
   const cropFile = cropIndex !== null ? files[cropIndex] : null;
 
@@ -425,7 +427,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
                   : { background: 'var(--color-surface-2)', color: 'var(--color-ink-muted)' }
               }
             >
-              {categoryLabel(c, locale)}
+              {categoryLabel(c, locale, catLabels)}
             </button>
           ))}
           <AddChip

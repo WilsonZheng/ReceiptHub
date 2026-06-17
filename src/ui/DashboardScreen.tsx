@@ -7,6 +7,7 @@ import { formatNZD } from '../lib/money';
 import { aggregateByMonth, firstMonth, monthsBetween, pctChange, topBy } from '../lib/stats';
 import { useLocale, useT, type MsgKey } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
+import { getConfig } from '../lib/settings';
 import { formatMonth } from '../lib/dates';
 import { localToday } from '../lib/dates';
 import { kindOf, type Receipt, type Space } from '../data/types';
@@ -48,6 +49,7 @@ export function DashboardScreen({ space, onCapture }: { space: Space; onCapture:
   const [expandedCat, setExpandedCat] = useState<string | null>(null); // 分类下钻
   const t = useT();
   const locale = useLocale();
+  const catLabels = useMemo(() => getConfig().labels, []);
 
   useEffect(() => {
     const sub = liveQuery(() => db.receipts.toArray()).subscribe({
@@ -363,7 +365,7 @@ export function DashboardScreen({ space, onCapture }: { space: Space; onCapture:
                         >
                           <div className="flex justify-between">
                             <span>
-                              {categoryLabel(c, locale)}{' '}
+                              {categoryLabel(c, locale, catLabels)}{' '}
                               <span style={{ color: 'var(--color-ink-muted)' }}>{pct}%</span>
                             </span>
                             <span style={{ fontFamily: 'var(--font-numeric)', color }}>

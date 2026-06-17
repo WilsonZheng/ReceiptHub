@@ -26,8 +26,13 @@ export interface Receipt {
 
 export const kindOf = (r: Pick<Receipt, 'kind'>): Kind => r.kind ?? 'expense';
 
+// 自定义分类的显示层译名：canonical key（存于 Receipt.category/CSV/搜索，不变）→ 各语言显示名。
+// 内置分类的中文走 categories.ts 的字典，无需在此存。
+export type CategoryLabels = Record<string, { en?: string; zh?: string }>;
+
 export interface AppConfig {
   categories: Record<Space, Record<Kind, string[]>>;
+  labels?: CategoryLabels;
 }
 
 export const DEFAULT_CONFIG: AppConfig = {

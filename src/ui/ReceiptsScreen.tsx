@@ -7,6 +7,7 @@ import { summarize } from '../lib/csv';
 import { formatNZD } from '../lib/money';
 import { useLocale, useT } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
+import { getConfig } from '../lib/settings';
 import { formatDate, formatMonth } from '../lib/dates';
 import { kindOf, type Kind, type Receipt, type Space } from '../data/types';
 import { ReceiptDetail } from './ReceiptDetail';
@@ -41,6 +42,7 @@ export function ReceiptsScreen({ space, onCapture }: { space: Space; onCapture: 
   }, [all, space, kindFilter, query, index]);
 
   const spaceHasAny = useMemo(() => all.some((r) => r.space === space), [all, space]);
+  const catLabels = useMemo(() => getConfig().labels, []);
   const byMonth = useMemo(() => {
     const groups = new Map<string, Receipt[]>();
     for (const r of visible) {
@@ -116,7 +118,7 @@ export function ReceiptsScreen({ space, onCapture }: { space: Space; onCapture: 
                   </span>
                 )}
                 <span className="block text-[11px]" style={{ color: 'var(--color-ink-muted)' }}>
-                  {formatDate(r.date, locale)} · {categoryLabel(r.category, locale)}
+                  {formatDate(r.date, locale)} · {categoryLabel(r.category, locale, catLabels)}
                 </span>
               </span>
               <span className="amount shrink-0 text-right">

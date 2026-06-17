@@ -366,6 +366,34 @@ test('inline category add: tap + chip, type, enter — usable in capture', async
   await expect(page.getByRole('button', { name: 'Gardening', exact: true })).toBeVisible();
 });
 
+test('custom category gets a per-language display name', async ({ page }) => {
+  await openMore(page, 'Settings');
+  // 英文界面下新增自定义分类（canonical key = "Insurance"）
+  await page.getByRole('button', { name: '＋ Add' }).first().click(); // 公司·支出组
+  await page.getByPlaceholder('New category').fill('Insurance');
+  await page.getByPlaceholder('New category').press('Enter');
+  await expect(page.getByText('Insurance')).toBeVisible();
+
+  // 切到中文：自定义分类此时仍按 key 显示 "Insurance"
+  await page.getByRole('button', { name: '中文' }).click();
+  // 点该分类的"设置显示名"，填中文显示名
+  await page.getByRole('button', { name: '设置显示名' }).first().click();
+  await page.getByPlaceholder('中文显示名').fill('保险');
+  await page.getByPlaceholder('中文显示名').press('Enter');
+  await expect(page.getByText('保险')).toBeVisible();
+
+  // 显示层译名应贯穿全站：拍照页分类按钮显示中文
+  await page.getByRole('button', { name: '拍照' }).click();
+  await expect(page.getByRole('button', { name: '保险', exact: true })).toBeVisible();
+
+  // 切回英文：canonical key 不变，仍显示 "Insurance"（数据/CSV 稳定）
+  await page.getByRole('button', { name: '更多' }).click();
+  await page.getByRole('button', { name: '设置' }).click();
+  await page.getByRole('button', { name: 'English' }).click();
+  await expect(page.getByText('Insurance')).toBeVisible();
+  await expect(page.getByText('保险')).toHaveCount(0);
+});
+
 test('space toggle separates company and personal', async ({ page }) => {
   await addReceipt(page, 'Company Store', '100.00', 'Other');
   // 切到 personal

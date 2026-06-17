@@ -1,4 +1,11 @@
-import { DEFAULT_CONFIG, type AppConfig, type Kind, type Space } from '../data/types';
+import {
+  DEFAULT_CONFIG,
+  type AppConfig,
+  type CategoryLabels,
+  type Kind,
+  type Space,
+} from '../data/types';
+import type { Locale } from './i18n';
 
 const PAT_KEY = 'rh.pat';
 const CONFIG_KEY = 'rh.config';
@@ -68,4 +75,22 @@ export function canonicalCategory(cfg: AppConfig, space: Space, kind: Kind, name
     cfg.categories[space][kind].find((c) => c.toLowerCase() === name.trim().toLowerCase()) ??
     name.trim()
   );
+}
+
+/**
+ * 设置自定义分类在某语言下的显示名（空字符串=清除该语言覆盖）。
+ * canonical key 不动——只改显示层。返回最新配置。
+ */
+export function setCategoryLabel(name: string, locale: Locale, label: string): AppConfig {
+  const cfg = getConfig();
+  const trimmed = label.trim();
+  const labels: CategoryLabels = { ...(cfg.labels ?? {}) };
+  const entry = { ...(labels[name] ?? {}) };
+  if (trimmed) entry[locale] = trimmed;
+  else delete entry[locale];
+  if (Object.keys(entry).length) labels[name] = entry;
+  else delete labels[name];
+  const next: AppConfig = { ...cfg, labels };
+  setConfig(next);
+  return next;
 }
