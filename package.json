@@ -18,26 +18,26 @@
     "format:check": "prettier --check src e2e"
   },
   "dependencies": {
-    "dexie": "^4.4.3",
-    "lucide-react": "^1.17.0",
+    "dexie": "^4.4.4",
+    "lucide-react": "^1.21.0",
     "minisearch": "^7.2.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "ulid": "^3.0.2"
   },
   "devDependencies": {
-    "@playwright/test": "^1.60.0",
-    "@tailwindcss/vite": "^4.3.0",
+    "@playwright/test": "^1.61.0",
+    "@tailwindcss/vite": "^4.3.1",
     "@types/node": "^25.9.2",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.2",
     "fake-indexeddb": "^6.2.5",
-    "prettier": "^3.8.3",
+    "prettier": "^3.8.4",
     "tailwindcss": "^4.3.0",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vite-plugin-pwa": "^1.3.0",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.9"
   }
 }
