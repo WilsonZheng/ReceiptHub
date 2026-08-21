@@ -5,7 +5,13 @@ import { clearDraft, emptyDraft, getDraft, isDraftDirty, setDraft } from '../lib
 import { localToday } from '../lib/dates';
 import { formatNZD, gstFromTotalCents, parseNZD } from '../lib/money';
 import { extractReceipt, ExtractError } from '../lib/extract';
-import { addCategoryToConfig, canonicalCategory, getAiKey, getConfig } from '../lib/settings';
+import {
+  addCategoryToConfig,
+  canonicalCategory,
+  getAiKey,
+  getAiProvider,
+  getConfig,
+} from '../lib/settings';
 import { AddChip } from './components/AddChip';
 import { useLocale, useT } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
@@ -164,10 +170,11 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
   const cfg = getConfig();
   const categories = cfg.categories[space][kind];
   const catLabels = cfg.labels;
-  const aiKey = getAiKey();
+  const aiProvider = getAiProvider();
+  const aiKey = getAiKey(aiProvider);
   const cropFile = cropIndex !== null ? files[cropIndex] : null;
 
-  // 用原图（非缩略图）送 Gemini：分辨率决定识别质量
+  // 用原图（非缩略图）送当前 AI 提供商：分辨率决定识别质量。
   async function handleExtract() {
     if (!aiKey || !files.length || extracting) return;
     setExtracting(true);
@@ -176,7 +183,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       // 全部照片一起送（同一票据的多页/多张），extract 内部上限 4 张
       const r = await extractReceipt(
         files.map((f) => ({ blob: f.full, kind: f.kind })),
-        { apiKey: aiKey, categories: getConfig().categories[space], locale },
+        { apiKey: aiKey, provider: aiProvider, categories: getConfig().categories[space], locale },
       );
       if (r.kind) setKind(r.kind);
       if (r.merchant) setMerchant(r.merchant);
@@ -201,6 +208,8 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       if (e instanceof ExtractError && e.reason === 'auth') setError(t('aiErrAuth'));
       else if (e instanceof ExtractError && e.reason === 'rate_limit') setError(t('aiErrRate'));
       else if (e instanceof ExtractError && e.reason === 'network') setError(t('aiErrNetwork'));
+      else if (e instanceof ExtractError && e.reason === 'request') setError(t('aiErrRequest'));
+      else if (e instanceof ExtractError && e.reason === 'empty') setError(t('aiErrEmpty'));
       else setError(t('aiErrOther'));
     } finally {
       setExtracting(false);
@@ -369,7 +378,9 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
             }}
           >
             <Sparkles className="icon" aria-hidden="true" />
-            {extracting ? t('aiExtracting') : t('aiExtract')}
+            {extracting
+              ? t('aiExtracting')
+              : `${t('aiExtract')} · ${aiProvider === 'mistral' ? 'Mistral' : 'Gemini'}`}
           </button>
         )}
 

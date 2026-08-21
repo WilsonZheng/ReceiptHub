@@ -9,15 +9,33 @@ import type { Locale } from './i18n';
 
 const PAT_KEY = 'rh.pat';
 const CONFIG_KEY = 'rh.config';
-const AI_KEY = 'rh.gemini';
+const AI_PROVIDER_KEY = 'rh.ai.provider';
+const AI_KEYS = {
+  mistral: 'rh.mistral',
+  gemini: 'rh.gemini', // 保留旧 key 名，现有 Gemini 用户无需迁移
+} as const;
 export const DATA_REPO = 'WilsonZheng/ReceiptHub-data';
 
-// Gemini API key（免费层）——可选功能，不配则 AI 提取按钮不出现
-export const getAiKey = (): string | null => localStorage.getItem(AI_KEY);
-export const setAiKey = (key: string): void => {
+export type AiProvider = keyof typeof AI_KEYS;
+
+/** 新用户优先 Mistral；已有 Gemini key 的用户继续沿用 Gemini。 */
+export function getAiProvider(): AiProvider {
+  const saved = localStorage.getItem(AI_PROVIDER_KEY);
+  if (saved === 'mistral' || saved === 'gemini') return saved;
+  return localStorage.getItem(AI_KEYS.gemini) ? 'gemini' : 'mistral';
+}
+
+export function setAiProvider(provider: AiProvider): void {
+  localStorage.setItem(AI_PROVIDER_KEY, provider);
+}
+
+// API key 是可选功能，每个提供商独立保存；不配当前提供商则 AI 提取按钮不出现。
+export const getAiKey = (provider: AiProvider = getAiProvider()): string | null =>
+  localStorage.getItem(AI_KEYS[provider]);
+export const setAiKey = (provider: AiProvider, key: string): void => {
   const v = key.trim();
-  if (v) localStorage.setItem(AI_KEY, v);
-  else localStorage.removeItem(AI_KEY);
+  if (v) localStorage.setItem(AI_KEYS[provider], v);
+  else localStorage.removeItem(AI_KEYS[provider]);
 };
 
 // UI 上对外只称 "Password"，实际值是 fine-grained PAT——锁屏不泄露认证机制

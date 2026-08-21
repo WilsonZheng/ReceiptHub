@@ -7,7 +7,7 @@
 ## 项目一览
 
 自用 invoice/receipt 管理 PWA。React 19 + TS strict + Tailwind v4 + Dexie（本地优先），
-数据同步到私有 GitHub 仓库（Contents API + PAT），AI 提取走 Gemini 2.5 Flash 免费层。
+数据同步到私有 GitHub 仓库（Contents API + PAT），AI 提取默认走 Mistral OCR 4，也可切换 Gemini 2.5 Flash。
 线上：https://wilsonzheng.github.io/ReceiptHub/ · **零后端，$0/月。**
 
 ## 命令
@@ -31,8 +31,8 @@ npm run dev                # 本地开发
 6. **iOS PWA**：关键 UI 永不锚定底部（5 轮 debug 的结论）；输入字号 ≥16px；`backdrop-filter` 只放视觉壳，弹层/遮罩挂无滤镜外层。
 7. **颜色/字体只用 `theme/tokens.css` 的 CSS 变量**，组件禁止硬编码。收入 `+` 绿（accent）、支出 `-` 红（danger）。
 8. **i18n**：所有用户可见文案进 `lib/i18n.ts` 双字典（`Record<MsgKey,string>` 编译期强制中英对齐，漏译= tsc 报错）。
-9. **e2e**：`getByRole` name 默认子串+大小写不敏感，`exact:true` 则大小写敏感；按钮可访问名可能带 emoji 前缀；GitHub/Gemini 一律 `page.route` mock。
-10. **AI 提取输出零信任**：日期正则、金额限幅、分类归并/限长，见 `lib/extract.ts` 的校验段。
+9. **e2e**：`getByRole` name 默认子串+大小写不敏感，`exact:true` 则大小写敏感；按钮可访问名可能带 emoji 前缀；GitHub/Mistral/Gemini 一律 `page.route` mock。
+10. **AI 提取输出零信任**：日期正则、金额限幅、分类归并/限长；429/瞬时故障须重试，2xx 空响应须明确报错，见 `lib/extract.ts`。
 
 ## 部署与上线确认
 

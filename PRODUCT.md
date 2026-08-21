@@ -15,7 +15,7 @@ Two usage contexts, both first-class:
 
 ## Product Purpose
 
-Capture invoices and receipts (camera / photo library / PDF / drag-drop / paste), have **Gemini AI extract** the merchant, date, amount, income-vs-expense, category, line items, and notes, then store everything **local-first** (IndexedDB, offline-capable, zero-latency search) and sync to a **private GitHub repo** as the backend.
+Capture invoices and receipts (camera / photo library / PDF / drag-drop / paste), have a **configurable AI provider** (Mistral OCR recommended, Gemini retained) extract the merchant, date, amount, income-vs-expense, category, line items, and notes, then store everything **local-first** (IndexedDB, offline-capable, zero-latency search) and sync to a **private GitHub repo** as the backend.
 
 It computes **New Zealand GST** automatically (GST-inclusive price × 3/23, to the cent, manual override allowed), reconciles **output GST − input GST** into the net amount owed to IRD, and exports **CSV** (with line items) for filing.
 
@@ -23,7 +23,7 @@ Success: the owner trusts that every dollar and every GST cent is captured corre
 
 ## Brand Personality
 
-**Calm financial trust** — steady, legible, accountant-grade. Three words: *trustworthy, clear, composed.*
+**Calm financial trust** — steady, legible, accountant-grade. Three words: _trustworthy, clear, composed._
 
 - **Voice:** plain and precise, bilingual with full parity (no second-class language). It states what happened and what a number means; it never hypes. Button labels say what will happen ("导出 CSV" / "Export CSV"), not "OK".
 - **Emotional goal:** confidence and calm. The opposite of tax-time dread. The user should feel the numbers are correct and the tool is quietly competent.

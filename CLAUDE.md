@@ -1,6 +1,6 @@
 # CLAUDE.md — ReceiptHub
 
-自用 invoice/receipt 管理 PWA。React 19 + TS strict + Tailwind v4 + Dexie，托管 GitHub Pages，数据存私有仓库，AI 提取走 Gemini 免费层。**$0/月，零后端。**
+自用 invoice/receipt 管理 PWA。React 19 + TS strict + Tailwind v4 + Dexie，托管 GitHub Pages，数据存私有仓库，AI 提取默认走 Mistral OCR、可切 Gemini。**$0/月，零后端。**
 
 ## 命令
 
@@ -22,6 +22,7 @@ npx prettier --write src e2e
 - **`public/llms.txt`**：线上站点的 AI 可读索引（llmstxt.org）
 
 **验证纪律（有过翻车教训）：**
+
 - 永远用**退出码**判断成败：`cmd > /dev/null 2>&1; echo $?`。曾经把 `tsc` 输出管道给 `tail -1` 看尾行，真实的类型错误被吞掉、坏代码推上 CI 才被抓住。
 - Playwright 的 webServer 是 `npm run preview`，**依赖 dist/ 已存在**——本地碰巧有旧 dist 会假绿。改动后先 `npx vite build` 再跑 e2e（CI 已按此排序）。
 - 提交前完整序列：`tsc` → `vitest` → `vite build` → `playwright` → `prettier --write`，全绿才 push。
@@ -73,13 +74,14 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 7. Google Drive 上传无需任何代码：iOS 文件选择器的「浏览」= 系统 Files App，Drive/Dropbox 是其官方接入方。不要去接 Google Picker API。
 8. **`backdrop-filter` 双重陷阱**：它让元素变成原子层叠上下文（内部 z-index 出不去，菜单会被后续内容盖住）且成为 `fixed` 后代的包含块（全屏遮罩缩成自身大小）。规则：毛玻璃只放在纯视觉壳上，绝对/固定定位的弹层（菜单、遮罩）必须挂在**无滤镜的外层**（见 TopNav 结构）。
 
-## AI 提取（Gemini）
+## AI 提取（Mistral / Gemini）
 
-- 模型 `gemini-2.5-flash`，免费层 1,500 次/天。key 存 localStorage `rh.gemini`，走 `x-goog-api-key` 请求头（不进 URL）。
-- **重要事实：博客普遍声称 Gemini API 不支持浏览器 CORS——实测是错的**（OPTIONS 预检返回 allow-origin）。GitHub Models 同样支持 CORS 但 50 次/天且不支持 PDF，作备选。
-- 图片与 PDF 走同一 `inline_data` 通道（这是选 Gemini 的核心原因）；多张照片 = 同一票据的多页，合并进一个请求（上限 4）。
-- 结构化输出用 `response_schema` + temperature 0；**服务端输出零信任**：日期正则校验、金额限幅、分类必须在用户列表内否则丢弃、items 截断。
-- 错误分四档面向用户：key 无效 / 429 限流 / 网络 / 其他。
+- 提供商存 `rh.ai.provider`；Mistral / Gemini key 分别存 localStorage `rh.mistral` / `rh.gemini`。新用户默认 Mistral；没有 provider 标记但已有 `rh.gemini` 的旧用户继续走 Gemini。key 只进请求头、不进 URL。
+- **Mistral（推荐）**：固定 GA 模型 `mistral-ocr-4-0`（禁止用会漂移到 preview 的 `latest`），浏览器直连 `POST /v1/ocr`。图片走 base64 `image_url`，PDF 走 base64 `document_url`，用 `document_annotation_format: json_schema` 一次返回结构化字段。金额 schema 刻意用 decimal string（不用 JSON number），规避 OCR 4.0 strict constrained decoding 偶发的浮点无限展开/截断问题。
+- Mistral OCR 每请求只接一个 document：多张照片/PDF（上限 4）顺序请求，既降低免费层并发限流，又按同一票据合并；商家/日期取首个、最终总额取最后一个、items/notes 去重合并。
+- **Gemini（兼容选项）**：`gemini-2.5-flash`，图片/PDF 走 `inline_data`，多页合并进一个请求；请求体超过约 18.5MB 在客户端拒绝。浏览器 CORS 已实测支持。
+- 两条路径共享结构化校验：日期正则、金额限幅、分类大小写归并或限长提名、items/note 截断；数字字符串金额也可容错解析。
+- 429、408/425、5xx 和浏览器网络故障最多重试 3 次并尊重 `Retry-After`（最长等 10 秒）。错误分为 key / 限流 / 网络 / 文件请求 / 空识别 / 解析；**2xx 无内容不许再静默返回 `{}`**。
 
 ## 前端约定
 
@@ -93,7 +95,7 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 
 ## e2e 约定（Playwright）
 
-- mock GitHub API 用 `page.route` 内存 Map（见 `mockGithub`）；mock Gemini 同理。
+- mock GitHub API 用 `page.route` 内存 Map（见 `mockGithub`）；mock Mistral/Gemini 同理。
 - `getByRole` 的 `name` 默认**子串+大小写不敏感**；`exact: true` 则**大小写敏感**（曾因 'all'≠'All' 翻车）。Tab 按钮可访问名含 emoji 前缀（"📷 拍照"），中文断言时注意 strict mode 多元素冲突。
 - 锁屏解锁 helper 直接填 PAT；测试值 `github_pat_test`。
 

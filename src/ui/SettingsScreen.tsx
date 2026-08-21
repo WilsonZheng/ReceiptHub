@@ -6,11 +6,14 @@ import {
   addCategoryToConfig,
   clearPat,
   getAiKey,
+  getAiProvider,
   getConfig,
   setAiKey,
+  setAiProvider,
   setCategoryLabel,
   setConfig,
   DATA_REPO,
+  type AiProvider,
 } from '../lib/settings';
 import { AddChip } from './components/AddChip';
 import { setLocale, useLocale, useT, type Locale } from '../lib/i18n';
@@ -23,6 +26,7 @@ function Pill({ active, label, onClick }: { active: boolean; label: string; onCl
   return (
     <button
       onClick={onClick}
+      aria-pressed={active}
       className="segmented-btn"
       style={
         active
@@ -39,7 +43,8 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
   const { status, pending } = useSyncStatus();
   const [counts, setCounts] = useState({ receipts: 0, photos: 0 });
   const [config, setLocalConfig] = useState(getConfig());
-  const [aiKey, setAiKeyLocal] = useState(getAiKey() ?? '');
+  const [aiProvider, setAiProviderLocal] = useState<AiProvider>(getAiProvider);
+  const [aiKey, setAiKeyLocal] = useState(() => getAiKey(getAiProvider()) ?? '');
   const [aiSaved, setAiSaved] = useState(false);
   const [showAiKey, setShowAiKey] = useState(false);
   // 自定义分类的双语译名就地编辑：一次编辑一个，editingLabel 存 canonical key
@@ -95,6 +100,18 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
     { value: 'dark', labelKey: 'dark' },
     { value: 'light', labelKey: 'light' },
   ];
+  const AI_PROVIDERS: { value: AiProvider; label: string }[] = [
+    { value: 'mistral', label: 'Mistral' },
+    { value: 'gemini', label: 'Gemini' },
+  ];
+
+  function chooseAiProvider(provider: AiProvider) {
+    setAiProvider(provider);
+    setAiProviderLocal(provider);
+    setAiKeyLocal(getAiKey(provider) ?? '');
+    setAiSaved(false);
+    setShowAiKey(false);
+  }
 
   return (
     <div className="screen-wrap grid gap-4 py-2 text-sm lg:grid-cols-2 lg:items-start">
@@ -130,15 +147,39 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
 
       <section className="panel panel-pad">
         <h3 className="font-bold">{t('aiTitle')}</h3>
+        <div className="mt-2 flex gap-1.5" role="group" aria-label={t('aiProvider')}>
+          {AI_PROVIDERS.map((provider) => (
+            <Pill
+              key={provider.value}
+              active={aiProvider === provider.value}
+              label={provider.label}
+              onClick={() => chooseAiProvider(provider.value)}
+            />
+          ))}
+        </div>
         <p className="mt-1 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-          {t('aiHint')}
+          {t(aiProvider === 'mistral' ? 'aiHintMistral' : 'aiHintGemini')}{' '}
+          <a
+            href={
+              aiProvider === 'mistral'
+                ? 'https://console.mistral.ai/api-keys'
+                : 'https://aistudio.google.com/apikey'
+            }
+            target="_blank"
+            rel="noreferrer"
+            className="underline"
+          >
+            {t('aiGetKey')} <ExternalLink className="inline h-3 w-3" aria-hidden="true" />
+          </a>
         </p>
         <div className="mt-2 grid grid-cols-[1fr_auto_auto] gap-2">
           <input
             type={showAiKey ? 'text' : 'password'}
             value={aiKey}
             onChange={(e) => setAiKeyLocal(e.target.value)}
-            placeholder={t('aiKeyPlaceholder')}
+            placeholder={t(
+              aiProvider === 'mistral' ? 'aiKeyPlaceholderMistral' : 'aiKeyPlaceholderGemini',
+            )}
             className="field"
           />
           <button
@@ -154,7 +195,8 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
           </button>
           <button
             onClick={() => {
-              setAiKey(aiKey);
+              setAiProvider(aiProvider);
+              setAiKey(aiProvider, aiKey);
               setAiSaved(true);
               setTimeout(() => setAiSaved(false), 1500);
             }}
@@ -166,7 +208,7 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
         {aiKey && (
           <button
             onClick={() => {
-              setAiKey('');
+              setAiKey(aiProvider, '');
               setAiKeyLocal('');
               setShowAiKey(false);
             }}

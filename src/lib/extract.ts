@@ -1,21 +1,29 @@
-// Gemini 2.5 Flash 免费层（1,500 次/天）：浏览器直连（CORS 已实测支持），
-// key 走 x-goog-api-key 请求头（不进 URL，避免日志泄露）。
-// 图片和 PDF 走同一个 inline_data 通道——这是选 Gemini 而非 GitHub Models 的核心原因。
+// Mistral OCR / Gemini 均由浏览器直连，key 只放请求头且不进 URL。
+// 服务端响应始终视为不可信数据；统一在本文件完成校验和归一化。
 import { toBase64 } from '../sync/github';
 import type { Locale } from './i18n';
 import type { Kind, PhotoKind } from '../data/types';
+import type { AiProvider } from './settings';
 
-const MODEL = 'gemini-2.5-flash';
-const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+// 固定 GA 版本，避免 `latest` 自动漂移到 preview 模型。
+const MISTRAL_MODEL = 'mistral-ocr-4-0';
+const MISTRAL_ENDPOINT = 'https://api.mistral.ai/v1/ocr';
 const MAX_ATTEMPTS = 3;
-const RETRY_DELAYS_MS = [0, 450, 1200];
+const RETRY_DELAYS_MS = [0, 1_000, 2_500];
 const REQUEST_TIMEOUT_MS = 45_000;
+const MAX_FILES = 4;
+const MAX_GEMINI_BODY_CHARS = 18_500_000;
 
-export type ExtractReason = 'auth' | 'rate_limit' | 'network' | 'parse';
+export type ExtractReason = 'auth' | 'rate_limit' | 'network' | 'request' | 'parse' | 'empty';
 
 export class ExtractError extends Error {
   override name = 'ExtractError';
-  constructor(public reason: ExtractReason) {
+  constructor(
+    public reason: ExtractReason,
+    public status?: number,
+  ) {
     super(`extract failed: ${reason}`);
   }
 }
@@ -33,11 +41,22 @@ export interface Extraction {
 
 interface ExtractOpts {
   apiKey: string;
+  provider: AiProvider;
   categories: Record<Kind, string[]>;
   locale: Locale;
 }
 
-const RESPONSE_SCHEMA = {
+interface RawExtraction {
+  merchant?: unknown;
+  date?: unknown;
+  total?: unknown;
+  kind?: unknown;
+  category?: unknown;
+  items?: unknown;
+  note?: unknown;
+}
+
+const GEMINI_RESPONSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
     merchant: { type: 'STRING' },
@@ -50,7 +69,36 @@ const RESPONSE_SCHEMA = {
   },
 };
 
-function buildPrompt(categories: Record<Kind, string[]>, locale: Locale): string {
+const MISTRAL_RESPONSE_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    merchant: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    date: {
+      anyOf: [{ type: 'string' }, { type: 'null' }],
+      description: 'ISO date YYYY-MM-DD',
+    },
+    // OCR 4.0 strict decoding has had float expansion failures for JSON `number` fields.
+    // A decimal string is exact for money and normalizeExtraction already validates/parses it.
+    total: {
+      anyOf: [{ type: 'string' }, { type: 'null' }],
+      description: 'final total including GST as a decimal dollar string, e.g. "57.80"',
+    },
+    kind: {
+      anyOf: [{ type: 'string', enum: ['expense', 'income'] }, { type: 'null' }],
+    },
+    category: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+    items: { type: 'array', items: { type: 'string' }, maxItems: 12 },
+    note: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+  },
+  required: ['merchant', 'date', 'total', 'kind', 'category', 'items', 'note'],
+};
+
+function buildPrompt(
+  categories: Record<Kind, string[]>,
+  locale: Locale,
+  provider: AiProvider,
+): string {
   const noteLang = locale === 'zh' ? 'Chinese' : 'English';
   return [
     'Extract structured data from this receipt or invoice (New Zealand context).',
@@ -63,11 +111,11 @@ function buildPrompt(categories: Record<Kind, string[]>, locale: Locale): string
     '- items: the main line items/services as a list, each entry like "Name ×qty" (keep original product names, max 10 entries; merge trivial ones).',
     `- note: other useful info in ${noteLang}: invoice number if present, payment method if visible. Max 80 characters. Separate parts with " · ". Do NOT repeat the items here.`,
     'If multiple attachments are provided, they are photos/pages of the SAME single receipt or invoice — combine them into one record.',
-    'Omit any field you cannot determine confidently.',
+    provider === 'mistral'
+      ? 'Return total as a decimal string. Use null for any other unknown field and [] for unknown items.'
+      : 'Omit any field you cannot determine confidently.',
   ].join('\n');
 }
-
-const MAX_FILES = 4; // 防 payload 过大；一张票据极少超过 4 页/张
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -75,11 +123,23 @@ function isTransientStatus(status: number): boolean {
   return (
     status === 408 ||
     status === 425 ||
+    status === 429 ||
     status === 500 ||
     status === 502 ||
     status === 503 ||
     status === 504
   );
+}
+
+function retryDelay(res: Response, attempt: number): number {
+  const retryAfter = res.headers.get('Retry-After');
+  if (retryAfter !== null) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds)) return Math.min(Math.max(seconds * 1_000, 0), 10_000);
+    const at = Date.parse(retryAfter);
+    if (Number.isFinite(at)) return Math.min(Math.max(at - Date.now(), 0), 10_000);
+  }
+  return RETRY_DELAYS_MS[attempt];
 }
 
 async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
@@ -92,87 +152,92 @@ async function fetchWithTimeout(url: string, init: RequestInit): Promise<Respons
   }
 }
 
-async function postGemini(apiKey: string, body: string): Promise<Response> {
+async function postJson(
+  url: string,
+  headers: Record<string, string>,
+  body: string,
+): Promise<Response> {
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    if (attempt > 0) await delay(RETRY_DELAYS_MS[attempt]);
     try {
-      const res = await fetchWithTimeout(ENDPOINT, {
+      const res = await fetchWithTimeout(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+        headers: { 'Content-Type': 'application/json', ...headers },
         body,
       });
-      if (isTransientStatus(res.status) && attempt < MAX_ATTEMPTS - 1) continue;
+      if (isTransientStatus(res.status) && attempt < MAX_ATTEMPTS - 1) {
+        await delay(retryDelay(res, attempt + 1));
+        continue;
+      }
       return res;
     } catch {
       if (attempt === MAX_ATTEMPTS - 1) throw new ExtractError('network');
+      await delay(RETRY_DELAYS_MS[attempt + 1]);
     }
   }
   throw new ExtractError('network');
 }
 
-export async function extractReceipt(
-  files: { blob: Blob; kind: PhotoKind }[],
-  opts: ExtractOpts,
-): Promise<Extraction> {
-  const inlineParts = await Promise.all(
-    files.slice(0, MAX_FILES).map(async (f) => ({
-      inline_data: {
-        mime_type: f.kind === 'pdf' ? 'application/pdf' : f.blob.type || 'image/webp',
-        data: await toBase64(f.blob),
-      },
-    })),
-  );
+async function throwForStatus(res: Response): Promise<void> {
+  if (res.status === 401 || res.status === 403) throw new ExtractError('auth', res.status);
+  if (res.status === 429) throw new ExtractError('rate_limit', res.status);
+  if (res.status === 400) {
+    // Gemini 的无效 key 历史上会返回 400，而格式/模型错误也是 400；不能再一刀切。
+    const detail = await res
+      .clone()
+      .text()
+      .catch(() => '');
+    if (/API_KEY_INVALID|API key not valid|invalid[^\n]{0,30}api.?key/i.test(detail)) {
+      throw new ExtractError('auth', res.status);
+    }
+    throw new ExtractError('request', res.status);
+  }
+  if (res.status === 413 || res.status === 415 || res.status === 422) {
+    throw new ExtractError('request', res.status);
+  }
+  if (!res.ok) throw new ExtractError('network', res.status);
+}
 
-  const body = JSON.stringify({
-    contents: [
-      {
-        parts: [...inlineParts, { text: buildPrompt(opts.categories, opts.locale) }],
-      },
-    ],
-    generationConfig: {
-      response_mime_type: 'application/json',
-      response_schema: RESPONSE_SCHEMA,
-      temperature: 0,
-    },
-  });
-
-  const res = await postGemini(opts.apiKey, body);
-  if (res.status === 429) throw new ExtractError('rate_limit');
-  if (res.status === 400 || res.status === 401 || res.status === 403)
-    throw new ExtractError('auth');
-  if (!res.ok) throw new ExtractError('network');
-
-  let raw: {
-    merchant?: string;
-    date?: string;
-    total?: number;
-    kind?: string;
-    category?: string;
-    items?: unknown;
-    note?: string;
-  };
+function parseJsonText(value: unknown): RawExtraction {
+  if (value && typeof value === 'object') return value as RawExtraction;
+  if (typeof value !== 'string' || !value.trim()) throw new ExtractError('empty');
+  const cleaned = value
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/, '');
   try {
-    const json = (await res.json()) as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    };
-    raw = JSON.parse(json.candidates?.[0]?.content?.parts?.[0]?.text ?? '{}');
-  } catch {
+    const parsed: unknown = JSON.parse(cleaned);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new ExtractError('parse');
+    }
+    return parsed as RawExtraction;
+  } catch (error) {
+    if (error instanceof ExtractError) throw error;
     throw new ExtractError('parse');
   }
+}
 
-  // 服务端输出不可信——逐字段校验
+function normalizeExtraction(raw: RawExtraction, categories: Record<Kind, string[]>): Extraction {
   const kind: Kind = raw.kind === 'income' ? 'income' : 'expense';
   const out: Extraction = {};
-  if (raw.merchant?.trim()) out.merchant = raw.merchant.trim();
-  if (raw.date && /^\d{4}-\d{2}-\d{2}$/.test(raw.date)) out.date = raw.date;
-  if (typeof raw.total === 'number' && raw.total > 0 && raw.total < 1_000_000) {
-    out.totalCents = Math.round(raw.total * 100);
+  if (typeof raw.merchant === 'string' && raw.merchant.trim()) {
+    out.merchant = raw.merchant.trim().slice(0, 120);
+  }
+  if (typeof raw.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.date)) {
+    out.date = raw.date;
+  }
+  const total =
+    typeof raw.total === 'number'
+      ? raw.total
+      : typeof raw.total === 'string'
+        ? Number(raw.total.replace(/[$,\s]/g, ''))
+        : Number.NaN;
+  if (Number.isFinite(total) && total > 0 && total < 1_000_000) {
+    out.totalCents = Math.round(total * 100);
   }
   if (raw.kind === 'income' || raw.kind === 'expense') out.kind = raw.kind;
-  if (raw.category?.trim()) {
+  if (typeof raw.category === 'string' && raw.category.trim()) {
     const name = raw.category.trim();
-    // 大小写不敏感归并到现有规范名；否则作为新分类提名（限长防 AI 胡编）
-    const hit = opts.categories[kind].find((c) => c.toLowerCase() === name.toLowerCase());
+    const hit = categories[kind].find((c) => c.toLowerCase() === name.toLowerCase());
     if (hit) out.category = hit;
     else if (name.length <= 30) out.newCategory = name;
   }
@@ -183,6 +248,178 @@ export async function extractReceipt(
       .slice(0, 12);
     if (items.length) out.items = items;
   }
-  if (raw.note?.trim()) out.note = raw.note.trim().slice(0, 200);
+  if (typeof raw.note === 'string' && raw.note.trim()) {
+    out.note = raw.note.trim().slice(0, 200);
+  }
   return out;
+}
+
+function hasExtraction(out: Extraction): boolean {
+  // kind 默认就是 expense，只有 kind 不代表真的识别出了任何票据信息。
+  return !!(
+    out.merchant ||
+    out.date ||
+    out.totalCents !== undefined ||
+    out.category ||
+    out.newCategory ||
+    out.items?.length ||
+    out.note
+  );
+}
+
+function mergeExtractions(parts: Extraction[]): Extraction {
+  const out: Extraction = {};
+  const items: string[] = [];
+  const notes: string[] = [];
+  const seenItems = new Set<string>();
+  const seenNotes = new Set<string>();
+
+  for (const part of parts) {
+    out.merchant ??= part.merchant;
+    out.date ??= part.date;
+    // 分页票据的最终总额通常只在最后一页；后页可信度高于前页小计。
+    if (part.totalCents !== undefined) out.totalCents = part.totalCents;
+    out.kind ??= part.kind;
+    out.category ??= part.category;
+    if (!out.category) out.newCategory ??= part.newCategory;
+    for (const item of part.items ?? []) {
+      const key = item.toLocaleLowerCase();
+      if (!seenItems.has(key) && items.length < 12) {
+        seenItems.add(key);
+        items.push(item);
+      }
+    }
+    if (part.note) {
+      const key = part.note.toLocaleLowerCase();
+      if (!seenNotes.has(key)) {
+        seenNotes.add(key);
+        notes.push(part.note);
+      }
+    }
+  }
+  if (out.category) delete out.newCategory;
+  if (items.length) out.items = items;
+  if (notes.length) out.note = notes.join(' · ').slice(0, 200);
+  return out;
+}
+
+async function extractGemini(
+  files: { blob: Blob; kind: PhotoKind }[],
+  opts: ExtractOpts,
+): Promise<Extraction> {
+  const inlineParts = await Promise.all(
+    files.map(async (f) => ({
+      inline_data: {
+        mime_type: f.kind === 'pdf' ? 'application/pdf' : f.blob.type || 'image/webp',
+        data: await toBase64(f.blob),
+      },
+    })),
+  );
+
+  const body = JSON.stringify({
+    contents: [
+      {
+        parts: [...inlineParts, { text: buildPrompt(opts.categories, opts.locale, 'gemini') }],
+      },
+    ],
+    generationConfig: {
+      response_mime_type: 'application/json',
+      response_schema: GEMINI_RESPONSE_SCHEMA,
+      temperature: 0,
+    },
+  });
+
+  if (body.length > MAX_GEMINI_BODY_CHARS) throw new ExtractError('request');
+  const res = await postJson(GEMINI_ENDPOINT, { 'x-goog-api-key': opts.apiKey }, body);
+  await throwForStatus(res);
+  let json: {
+    candidates?: { content?: { parts?: { text?: string }[] }; finishReason?: string }[];
+    promptFeedback?: { blockReason?: string };
+  };
+  try {
+    json = (await res.json()) as typeof json;
+  } catch {
+    throw new ExtractError('parse');
+  }
+  const text = json.candidates?.[0]?.content?.parts
+    ?.map((part) => part.text ?? '')
+    .join('')
+    .trim();
+  if (!text) throw new ExtractError('empty');
+  const out = normalizeExtraction(parseJsonText(text), opts.categories);
+  if (!hasExtraction(out)) throw new ExtractError('empty');
+  return out;
+}
+
+async function extractMistralFile(
+  file: { blob: Blob; kind: PhotoKind },
+  opts: ExtractOpts,
+  index: number,
+  totalFiles: number,
+): Promise<Extraction> {
+  const mime = file.kind === 'pdf' ? 'application/pdf' : file.blob.type || 'image/webp';
+  const dataUrl = `data:${mime};base64,${await toBase64(file.blob)}`;
+  const document =
+    file.kind === 'pdf'
+      ? { type: 'document_url', document_url: dataUrl }
+      : { type: 'image_url', image_url: dataUrl };
+  const pageContext =
+    totalFiles > 1
+      ? `\nThis attachment is page/photo ${index + 1} of ${totalFiles} from the same receipt. Extract only information visible on this attachment; the client will merge all pages.`
+      : '';
+  const body = JSON.stringify({
+    model: MISTRAL_MODEL,
+    document,
+    document_annotation_format: {
+      type: 'json_schema',
+      json_schema: {
+        name: 'receipt_extraction',
+        description: 'Structured fields from a New Zealand receipt or invoice',
+        schema: MISTRAL_RESPONSE_SCHEMA,
+        strict: true,
+      },
+    },
+    document_annotation_prompt: buildPrompt(opts.categories, opts.locale, 'mistral') + pageContext,
+    include_image_base64: false,
+    include_blocks: false,
+  });
+  const res = await postJson(MISTRAL_ENDPOINT, { Authorization: `Bearer ${opts.apiKey}` }, body);
+  await throwForStatus(res);
+  let json: { document_annotation?: unknown };
+  try {
+    json = (await res.json()) as { document_annotation?: unknown };
+  } catch {
+    throw new ExtractError('parse');
+  }
+  const out = normalizeExtraction(parseJsonText(json.document_annotation), opts.categories);
+  return out;
+}
+
+async function extractMistral(
+  files: { blob: Blob; kind: PhotoKind }[],
+  opts: ExtractOpts,
+): Promise<Extraction> {
+  const parts: Extraction[] = [];
+  // Free tier 限流更紧，顺序处理多页比同时打多个 OCR 请求稳定。
+  for (let i = 0; i < files.length; i++) {
+    try {
+      parts.push(await extractMistralFile(files[i], opts, i, files.length));
+    } catch (error) {
+      // 多页里偶有一张空白/模糊图不应拖垮其余页；全部为空仍在合并后明确报错。
+      if (files.length > 1 && error instanceof ExtractError && error.reason === 'empty') continue;
+      throw error;
+    }
+  }
+  const out = mergeExtractions(parts);
+  if (!hasExtraction(out)) throw new ExtractError('empty');
+  return out;
+}
+
+export async function extractReceipt(
+  inputFiles: { blob: Blob; kind: PhotoKind }[],
+  opts: ExtractOpts,
+): Promise<Extraction> {
+  const files = inputFiles.slice(0, MAX_FILES);
+  if (!files.length || !opts.apiKey.trim()) throw new ExtractError('request');
+  return opts.provider === 'mistral' ? extractMistral(files, opts) : extractGemini(files, opts);
 }

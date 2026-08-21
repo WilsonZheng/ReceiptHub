@@ -261,34 +261,27 @@ test('capture draft survives tab switches and can be discarded', async ({ page }
   await expect(page.getByRole('button', { name: 'Preview photo' })).not.toBeVisible();
 });
 
-test('ai extract: upload → button → form filled → save', async ({ page }) => {
-  // mock Gemini：返回结构化提取结果
-  await page.route('https://generativelanguage.googleapis.com/**', (route) =>
+test('Mistral AI extract: upload → OCR annotation → form filled → save', async ({ page }) => {
+  await page.route('https://api.mistral.ai/v1/ocr', (route) =>
     route.fulfill({
       json: {
-        candidates: [
-          {
-            content: {
-              parts: [
-                {
-                  text: JSON.stringify({
-                    merchant: 'Pak n Save',
-                    date: '2026-06-03',
-                    total: 57.8,
-                    kind: 'expense',
-                    category: 'Pet Supplies', // 不在默认分类表中 → 应被自动添加并选中
-                    items: ['Milk 2L ×2', 'Bread'],
-                    note: 'EFTPOS',
-                  }),
-                },
-              ],
-            },
-          },
-        ],
+        document_annotation: JSON.stringify({
+          merchant: 'Pak n Save',
+          date: '2026-06-03',
+          total: 57.8,
+          kind: 'expense',
+          category: 'Pet Supplies', // 不在默认分类表中 → 应被自动添加并选中
+          items: ['Milk 2L ×2', 'Bread'],
+          note: 'EFTPOS',
+        }),
+        pages: [],
       },
     }),
   );
-  await page.evaluate(() => localStorage.setItem('rh.gemini', 'test-ai-key'));
+  await page.evaluate(() => {
+    localStorage.setItem('rh.ai.provider', 'mistral');
+    localStorage.setItem('rh.mistral', 'test-ai-key');
+  });
   await page.reload();
 
   const chooserPromise = page.waitForEvent('filechooser');
@@ -312,6 +305,48 @@ test('ai extract: upload → button → form filled → save', async ({ page }) 
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Pak n Save')).toBeVisible();
   await expect(page.getByText('Milk 2L ×2 · Bread')).toBeVisible(); // 列表卡片显示 items
+});
+
+test('AI provider settings keep separate Mistral/Gemini keys and legacy Gemini users', async ({
+  page,
+}) => {
+  await openMore(page, 'Settings');
+  await expect(page.getByRole('button', { name: 'Mistral', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.getByPlaceholder('Mistral API key').fill('mistral-test-key');
+  await page.getByRole('button', { name: 'Save', exact: true }).first().click();
+
+  await page.getByRole('button', { name: 'Gemini', exact: true }).click();
+  await page.getByPlaceholder('Gemini API key').fill('gemini-test-key');
+  await page.getByRole('button', { name: 'Save', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Mistral', exact: true }).click();
+  await expect(page.getByPlaceholder('Mistral API key')).toHaveValue('mistral-test-key');
+  await expect(
+    page.evaluate(() => ({
+      provider: localStorage.getItem('rh.ai.provider'),
+      mistral: localStorage.getItem('rh.mistral'),
+      gemini: localStorage.getItem('rh.gemini'),
+    })),
+  ).resolves.toEqual({
+    provider: 'mistral',
+    mistral: 'mistral-test-key',
+    gemini: 'gemini-test-key',
+  });
+
+  // 没有 provider 标记的旧用户仍自动使用原来的 rh.gemini key。
+  await page.evaluate(() => {
+    localStorage.removeItem('rh.ai.provider');
+    localStorage.removeItem('rh.mistral');
+  });
+  await page.reload();
+  await openMore(page, 'Settings');
+  await expect(page.getByRole('button', { name: 'Gemini', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.getByPlaceholder('Gemini API key')).toHaveValue('gemini-test-key');
 });
 
 test('custom localized date picker: sheet opens, pick a day, value updates', async ({ page }) => {

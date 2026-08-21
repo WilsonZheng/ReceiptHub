@@ -1,6 +1,6 @@
 # ReceiptHub
 
-> Personal invoice/receipt manager PWA for a New Zealand user. Local-first (IndexedDB) with sync to a private GitHub repo via Contents API. AI field extraction via Gemini 2.5 Flash free tier, called directly from the browser. Bilingual (zh/en), dual theme, NZ GST aware (total × 3/23). Zero backend, $0/month.
+> Personal invoice/receipt manager PWA for a New Zealand user. Local-first (IndexedDB) with sync to a private GitHub repo via Contents API. AI field extraction via browser-direct Mistral OCR 4 (recommended) or Gemini 2.5 Flash. Bilingual (zh/en), dual theme, NZ GST aware (total × 3/23). Zero backend, $0/month.
 
 ## Docs
 
