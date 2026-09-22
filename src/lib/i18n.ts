@@ -60,7 +60,7 @@ const en = {
   aiKeyPlaceholderMistral: 'Mistral API key',
   aiKeyPlaceholderGemini: 'Gemini API key',
   aiHintMistral:
-    'Recommended for receipt OCR. Files are sent to Mistral only when you tap AI fill; the key stays on this device.',
+    'Recommended for receipts. Files are sent to Mistral only when you tap AI fill; the key stays on this device.',
   aiHintGemini:
     'Existing option. Files are sent to Google only when you tap AI fill; the key stays on this device.',
   aiGetKey: 'Open key console',
@@ -188,7 +188,7 @@ const zh: Record<MsgKey, string> = {
   aiProvider: 'AI 提供商',
   aiKeyPlaceholderMistral: 'Mistral API key',
   aiKeyPlaceholderGemini: 'Gemini API key',
-  aiHintMistral: '推荐用于票据 OCR。只有点击 AI 识别时文件才会发送给 Mistral；key 仅保存在本机。',
+  aiHintMistral: '推荐用于票据识别。只有点击 AI 识别时文件才会发送给 Mistral；key 仅保存在本机。',
   aiHintGemini: '保留的现有选项。只有点击 AI 识别时文件才会发送给 Google；key 仅保存在本机。',
   aiGetKey: '打开 Key 控制台',
   saveKey: '保存',

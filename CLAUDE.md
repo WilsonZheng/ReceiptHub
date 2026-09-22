@@ -77,13 +77,13 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 ## AI 提取（Mistral / Gemini）
 
 - 提供商存 `rh.ai.provider`；Mistral / Gemini key 分别存 localStorage `rh.mistral` / `rh.gemini`。新用户默认 Mistral；没有 provider 标记但已有 `rh.gemini` 的旧用户继续走 Gemini。key 只进请求头、不进 URL。
-- **Mistral（推荐）**：固定 GA 模型 `mistral-ocr-4-0`（禁止用会漂移到 preview 的 `latest`），浏览器直连 `POST /v1/ocr`。图片走 base64 `image_url`，PDF 走 base64 `document_url`，用 `document_annotation_format: json_schema` 一次返回结构化字段。金额 schema 刻意用 decimal string（不用 JSON number），规避 OCR 4.0 strict constrained decoding 偶发的浮点无限展开/截断问题。
-- Mistral OCR 每请求只接一个 document：多张照片/PDF（上限 4）顺序请求，既降低免费层并发限流，又按同一票据合并；商家/日期取首个、最终总额取最后一个、items/notes 去重合并。
+- **Mistral（推荐）**：`POST /v1/chat/completions`，钉死模型 `ministral-14b-2512`（禁止 `latest`，会漂移到本层级用不了的模型）。图片走 base64 `image_url`、PDF 走 base64 `document_url`，全部附件（上限 4）放进**同一个请求**的 `messages[0].content`，模型自己跨页合并；结构化输出用 `response_format: json_schema` + `strict: true`。金额 schema 刻意用 decimal string（不用 JSON number），规避 strict constrained decoding 偶发的浮点无限展开/截断。
+- **为什么不用 `/v1/ocr`（踩过的坑，别改回去）**：Mistral 免费订阅层**不包含任何 OCR 模型**。七个 `mistral-ocr-*` 全部在 `/v1/ocr` 上返回 429，`x-ratelimit-limit-req-minute: 0`。限额是**按模型**算的，0 的含义是"这个模型不在你的层级"，不是"你用超了"——Mistral 对此有两种表达：`mistral-large-latest` 给明确的 403 `This model is not available in your subscription tier`，其余给限额 0 的 429，后者极易误判成限流。免费层实测可用：`ministral-14b-2512`（每分钟 30 次）、`ministral-8b-2512`（188 次）、`ministral-3b-latest`（750 次）；不可用：`mistral-small` / `medium` / `magistral-small` / 全部 OCR。诊断方法是 curl 打一次看那个响应头。
 - **Gemini（兼容选项）**：`gemini-2.5-flash`，图片/PDF 走 `inline_data`，多页合并进一个请求；请求体超过约 18.5MB 在客户端拒绝。浏览器 CORS 已实测支持。
 - 两条路径共享结构化校验：日期正则、金额限幅、分类大小写归并或限长提名、items/note 截断；数字字符串金额也可容错解析。
 - 429、408/425、5xx 和浏览器网络故障最多重试 3 次并尊重 `Retry-After`（最长等 10 秒）。错误分为 key / 限流 / 网络 / 文件请求 / 空识别 / 解析；**2xx 无内容不许再静默返回 `{}`**，错误响应也必须把服务端原话带进 `ExtractError.detail` 并显示出来。
 - **浏览器读不到 Mistral 的限流头**：它的响应只有 `access-control-allow-origin: *`，没有 `Access-Control-Expose-Headers`，所以 `x-ratelimit-*` 和 `Retry-After` 在 fetch 里一律是 `null`——`retryDelay` 的 `Retry-After` 分支实际只在 curl/服务端场景生效，浏览器里永远走固定退避。响应体是唯一能读到的线索。
-- **429 不等于"用超了"**：Mistral 账号没有生效的 API 额度时，所有端点（OCR 和 chat 都一样）返回 429 `Rate limit exceeded` code 1300，且响应头是 `x-ratelimit-limit-req-minute: 0`——**限额本身就是 0**，等多久都不会恢复。判断方法是用 curl 打一次看这个头；`/v1/models` 不受限流，能 200 不代表账号能用。控制台的美元用量和限流是两块互不相干的表。
+- **`/v1/models` 返回 200 不代表账号能用**：那个端点不受限流，它列出的模型包含你的层级根本调不动的。要判断某个模型能不能用，只能真打一次请求看 `x-ratelimit-limit-req-minute`。控制台的美元用量和限流是两块互不相干的表——花了 $0.04/$10 照样可能一次请求都发不出去。
 
 ## 前端约定
 

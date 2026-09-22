@@ -7,14 +7,17 @@ import type { AiProvider } from './settings';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
-// 固定 GA 版本，避免 `latest` 自动漂移到 preview 模型。
-const MISTRAL_MODEL = 'mistral-ocr-4-0';
-const MISTRAL_ENDPOINT = 'https://api.mistral.ai/v1/ocr';
+// 免费订阅层不含任何 OCR 模型：`/v1/ocr` 下每个 mistral-ocr-* 的
+// `x-ratelimit-limit-req-minute` 都是 0，请求一律 429。带视觉能力的 ministral 系列可用。
+// 钉死版本号，避免 `latest` 漂移到这一层用不了的模型上。
+const MISTRAL_MODEL = 'ministral-14b-2512';
+const MISTRAL_ENDPOINT = 'https://api.mistral.ai/v1/chat/completions';
 const MAX_ATTEMPTS = 3;
 const RETRY_DELAYS_MS = [0, 1_000, 2_500];
 const REQUEST_TIMEOUT_MS = 45_000;
 const MAX_FILES = 4;
-const MAX_GEMINI_BODY_CHARS = 18_500_000;
+// 客户端兜底上限；两家的服务端上限都没文档化，真超了会由 ExtractError.detail 带回原话。
+const MAX_REQUEST_BODY_CHARS = 18_500_000;
 
 export type ExtractReason = 'auth' | 'rate_limit' | 'network' | 'request' | 'parse' | 'empty';
 
@@ -80,7 +83,7 @@ const MISTRAL_RESPONSE_SCHEMA = {
       anyOf: [{ type: 'string' }, { type: 'null' }],
       description: 'ISO date YYYY-MM-DD',
     },
-    // OCR 4.0 strict decoding has had float expansion failures for JSON `number` fields.
+    // Strict constrained decoding has had float expansion failures for JSON `number` fields.
     // A decimal string is exact for money and normalizeExtraction already validates/parses it.
     total: {
       anyOf: [{ type: 'string' }, { type: 'null' }],
@@ -297,42 +300,6 @@ function hasExtraction(out: Extraction): boolean {
   );
 }
 
-function mergeExtractions(parts: Extraction[]): Extraction {
-  const out: Extraction = {};
-  const items: string[] = [];
-  const notes: string[] = [];
-  const seenItems = new Set<string>();
-  const seenNotes = new Set<string>();
-
-  for (const part of parts) {
-    out.merchant ??= part.merchant;
-    out.date ??= part.date;
-    // 分页票据的最终总额通常只在最后一页；后页可信度高于前页小计。
-    if (part.totalCents !== undefined) out.totalCents = part.totalCents;
-    out.kind ??= part.kind;
-    out.category ??= part.category;
-    if (!out.category) out.newCategory ??= part.newCategory;
-    for (const item of part.items ?? []) {
-      const key = item.toLocaleLowerCase();
-      if (!seenItems.has(key) && items.length < 12) {
-        seenItems.add(key);
-        items.push(item);
-      }
-    }
-    if (part.note) {
-      const key = part.note.toLocaleLowerCase();
-      if (!seenNotes.has(key)) {
-        seenNotes.add(key);
-        notes.push(part.note);
-      }
-    }
-  }
-  if (out.category) delete out.newCategory;
-  if (items.length) out.items = items;
-  if (notes.length) out.note = notes.join(' · ').slice(0, 200);
-  return out;
-}
-
 async function extractGemini(
   files: { blob: Blob; kind: PhotoKind }[],
   opts: ExtractOpts,
@@ -359,7 +326,7 @@ async function extractGemini(
     },
   });
 
-  if (body.length > MAX_GEMINI_BODY_CHARS) throw new ExtractError('request');
+  if (body.length > MAX_REQUEST_BODY_CHARS) throw new ExtractError('request');
   const res = await postJson(GEMINI_ENDPOINT, { 'x-goog-api-key': opts.apiKey }, body);
   await throwForStatus(res);
   let json: {
@@ -381,26 +348,35 @@ async function extractGemini(
   return out;
 }
 
-async function extractMistralFile(
-  file: { blob: Blob; kind: PhotoKind },
+async function extractMistral(
+  files: { blob: Blob; kind: PhotoKind }[],
   opts: ExtractOpts,
-  index: number,
-  totalFiles: number,
 ): Promise<Extraction> {
-  const mime = file.kind === 'pdf' ? 'application/pdf' : file.blob.type || 'image/webp';
-  const dataUrl = `data:${mime};base64,${await toBase64(file.blob)}`;
-  const document =
-    file.kind === 'pdf'
-      ? { type: 'document_url', document_url: dataUrl }
-      : { type: 'image_url', image_url: dataUrl };
-  const pageContext =
-    totalFiles > 1
-      ? `\nThis attachment is page/photo ${index + 1} of ${totalFiles} from the same receipt. Extract only information visible on this attachment; the client will merge all pages.`
-      : '';
+  // 全部页面放进同一个请求：模型自己跨页合并（商家/日期取首页、总额取末页），
+  // 比过去按文件顺序请求再在客户端合并更准，也少占限额。
+  const attachments = await Promise.all(
+    files.map(async (f) => {
+      const mime = f.kind === 'pdf' ? 'application/pdf' : f.blob.type || 'image/webp';
+      const dataUrl = `data:${mime};base64,${await toBase64(f.blob)}`;
+      return f.kind === 'pdf'
+        ? { type: 'document_url', document_url: dataUrl }
+        : { type: 'image_url', image_url: dataUrl };
+    }),
+  );
+
   const body = JSON.stringify({
     model: MISTRAL_MODEL,
-    document,
-    document_annotation_format: {
+    temperature: 0,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: buildPrompt(opts.categories, opts.locale, 'mistral') },
+          ...attachments,
+        ],
+      },
+    ],
+    response_format: {
       type: 'json_schema',
       json_schema: {
         name: 'receipt_extraction',
@@ -409,38 +385,20 @@ async function extractMistralFile(
         strict: true,
       },
     },
-    document_annotation_prompt: buildPrompt(opts.categories, opts.locale, 'mistral') + pageContext,
-    include_image_base64: false,
-    include_blocks: false,
   });
+
+  if (body.length > MAX_REQUEST_BODY_CHARS) throw new ExtractError('request');
   const res = await postJson(MISTRAL_ENDPOINT, { Authorization: `Bearer ${opts.apiKey}` }, body);
   await throwForStatus(res);
-  let json: { document_annotation?: unknown };
+  let json: { choices?: { message?: { content?: string } }[] };
   try {
-    json = (await res.json()) as { document_annotation?: unknown };
+    json = (await res.json()) as typeof json;
   } catch {
     throw new ExtractError('parse');
   }
-  const out = normalizeExtraction(parseJsonText(json.document_annotation), opts.categories);
-  return out;
-}
-
-async function extractMistral(
-  files: { blob: Blob; kind: PhotoKind }[],
-  opts: ExtractOpts,
-): Promise<Extraction> {
-  const parts: Extraction[] = [];
-  // Free tier 限流更紧，顺序处理多页比同时打多个 OCR 请求稳定。
-  for (let i = 0; i < files.length; i++) {
-    try {
-      parts.push(await extractMistralFile(files[i], opts, i, files.length));
-    } catch (error) {
-      // 多页里偶有一张空白/模糊图不应拖垮其余页；全部为空仍在合并后明确报错。
-      if (files.length > 1 && error instanceof ExtractError && error.reason === 'empty') continue;
-      throw error;
-    }
-  }
-  const out = mergeExtractions(parts);
+  const text = json.choices?.[0]?.message?.content?.trim();
+  if (!text) throw new ExtractError('empty');
+  const out = normalizeExtraction(parseJsonText(text), opts.categories);
   if (!hasExtraction(out)) throw new ExtractError('empty');
   return out;
 }

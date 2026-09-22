@@ -261,20 +261,27 @@ test('capture draft survives tab switches and can be discarded', async ({ page }
   await expect(page.getByRole('button', { name: 'Preview photo' })).not.toBeVisible();
 });
 
-test('Mistral AI extract: upload → OCR annotation → form filled → save', async ({ page }) => {
-  await page.route('https://api.mistral.ai/v1/ocr', (route) =>
+test('Mistral AI extract: upload → structured extraction → form filled → save', async ({
+  page,
+}) => {
+  await page.route('https://api.mistral.ai/v1/chat/completions', (route) =>
     route.fulfill({
       json: {
-        document_annotation: JSON.stringify({
-          merchant: 'Pak n Save',
-          date: '2026-06-03',
-          total: 57.8,
-          kind: 'expense',
-          category: 'Pet Supplies', // 不在默认分类表中 → 应被自动添加并选中
-          items: ['Milk 2L ×2', 'Bread'],
-          note: 'EFTPOS',
-        }),
-        pages: [],
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                merchant: 'Pak n Save',
+                date: '2026-06-03',
+                total: '57.80',
+                kind: 'expense',
+                category: 'Pet Supplies', // 不在默认分类表中，应被自动添加并选中
+                items: ['Milk 2L ×2', 'Bread'],
+                note: 'EFTPOS',
+              }),
+            },
+          },
+        ],
       },
     }),
   );

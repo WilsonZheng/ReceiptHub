@@ -7,7 +7,7 @@
 ## 功能
 
 - 📷 **录入**：拍照 / 相册多选 / PDF / 桌面拖拽 / ⌘V 粘贴；iOS「浏览」可直取 Google Drive 等云盘
-- ✨ **AI 识别**（Mistral OCR 推荐，Gemini 可切换）：商家、日期、金额、收支、分类、商品明细、备注一键填好，多页票据合并识别
+- ✨ **AI 识别**（Mistral 视觉模型推荐，Gemini 可切换）：商家、日期、金额、收支、分类、商品明细、备注一键填好，多页票据合并识别
 - 📝 **草稿**：录到一半切页不丢（含照片），可一键丢弃
 - 💰 **收支双轨**：收入/支出独立分类体系（公司/个人 × 收/支 四套，可自定义），`+`绿 `-`默认色区分
 - 🔍 **全字段模糊搜索**：商家/商品/备注/分类（中英）/日期/金额/GST，容错拼写
@@ -21,7 +21,7 @@
 PWA (React 19 + TS + Tailwind v4) ──→ IndexedDB（本地优先：搜索/列表零延迟，离线可用）
                                         └─ outbox ──→ GitHub Contents API ──→ ReceiptHub-data
                                                       （SHA 乐观锁 + LWW + 软删除墓碑）
-AI: 浏览器直连 Mistral OCR 4（推荐）或 Gemini 2.5 Flash；key 分别仅存本机
+AI: 浏览器直连 Mistral `ministral-14b-2512`（推荐）或 Gemini 2.5 Flash；key 分别仅存本机
 ```
 
 - **验证**：fine-grained PAT（只授权数据仓库）当"密码"粘贴解锁；锁屏不泄露任何机制信息

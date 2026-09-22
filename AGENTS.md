@@ -7,7 +7,7 @@
 ## 项目一览
 
 自用 invoice/receipt 管理 PWA。React 19 + TS strict + Tailwind v4 + Dexie（本地优先），
-数据同步到私有 GitHub 仓库（Contents API + PAT），AI 提取默认走 Mistral OCR 4，也可切换 Gemini 2.5 Flash。
+数据同步到私有 GitHub 仓库（Contents API + PAT），AI 提取默认走 Mistral 的视觉模型 `ministral-14b-2512`（免费层不含 OCR 模型），也可切换 Gemini 2.5 Flash。
 线上：https://wilsonzheng.github.io/ReceiptHub/ · **零后端，$0/月。**
 
 ## 命令

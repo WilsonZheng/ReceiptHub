@@ -5,4 +5,4 @@
 3. 用户可见文案必须进 `src/lib/i18n.ts` 双语字典；颜色/字体只用 `src/theme/tokens.css` 变量。
 4. 认证方案（PAT 即密码、明文 localStorage）是用户拍板的既定决策，不要"修复"。
 5. 学到新坑写入 `CLAUDE.md`。
-6. AI 默认 Mistral OCR 4、Gemini 可切换；输出零信任，429/瞬时故障要重试，2xx 空响应要明确报错。修改规则时同步 `AGENTS.md` 与 `CLAUDE.md`。
+6. AI 默认 Mistral 视觉模型 `ministral-14b-2512`、Gemini 可切换；输出零信任，429/瞬时故障要重试，2xx 空响应要明确报错。修改规则时同步 `AGENTS.md` 与 `CLAUDE.md`。

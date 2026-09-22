@@ -23,7 +23,7 @@ const geminiReply = (obj: unknown) =>
   );
 
 const mistralReply = (obj: unknown) =>
-  new Response(JSON.stringify({ document_annotation: JSON.stringify(obj), pages: [] }), {
+  new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify(obj) } }] }), {
     status: 200,
   });
 
@@ -75,7 +75,7 @@ describe('extractReceipt', () => {
     });
   });
 
-  it('sends a base64 image, strict schema and bearer key to stable Mistral OCR', async () => {
+  it('sends a base64 image, strict schema and bearer key to the pinned Mistral model', async () => {
     const spy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(mistralReply({ merchant: 'Test Store' }));
@@ -83,22 +83,25 @@ describe('extractReceipt', () => {
     await extractReceipt([file], { ...MISTRAL_OPTS, apiKey: 'secret-key' });
 
     const [url, init] = spy.mock.calls[0];
-    expect(url).toBe('https://api.mistral.ai/v1/ocr');
+    expect(url).toBe('https://api.mistral.ai/v1/chat/completions');
     expect(String(url)).not.toContain('secret-key');
     const headers = init?.headers as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer secret-key');
     const body = JSON.parse(String(init?.body));
-    expect(body.model).toBe('mistral-ocr-4-0');
-    expect(body.document).toMatchObject({ type: 'image_url' });
-    expect(body.document.image_url).toMatch(/^data:image\/webp;base64,/);
-    expect(body.document_annotation_format).toMatchObject({
+    // 钉死版本号：`latest` 会漂移到这个订阅层级用不了的模型上。
+    expect(body.model).toBe('ministral-14b-2512');
+    expect(body.temperature).toBe(0);
+    const content = body.messages[0].content;
+    expect(content[0].type).toBe('text');
+    expect(content[1]).toMatchObject({ type: 'image_url' });
+    expect(content[1].image_url).toMatch(/^data:image\/webp;base64,/);
+    expect(body.response_format).toMatchObject({
       type: 'json_schema',
       json_schema: { name: 'receipt_extraction', strict: true },
     });
-    expect(body.document_annotation_format.json_schema.schema.properties.total).toMatchObject({
+    expect(body.response_format.json_schema.schema.properties.total).toMatchObject({
       anyOf: [{ type: 'string' }, { type: 'null' }],
     });
-    expect(body.include_blocks).toBe(false);
     expect(JSON.stringify(body)).toContain('Fuel');
   });
 
@@ -111,26 +114,23 @@ describe('extractReceipt', () => {
       MISTRAL_OPTS,
     );
     const body = JSON.parse(String(spy.mock.calls[0][1]?.body));
-    expect(body.document.type).toBe('document_url');
-    expect(body.document.document_url).toMatch(/^data:application\/pdf;base64,/);
+    const part = body.messages[0].content[1];
+    expect(part.type).toBe('document_url');
+    expect(part.document_url).toMatch(/^data:application\/pdf;base64,/);
   });
 
-  it('merges Mistral multi-photo fields sequentially and caps input at four', async () => {
-    const spy = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValueOnce(
-        mistralReply({
-          merchant: 'Multi Page Co',
-          date: '2026-08-21',
-          kind: 'expense',
-          category: 'Equipment',
-          items: ['Timber'],
-          note: 'Invoice 42',
-        }),
-      )
-      .mockResolvedValueOnce(mistralReply({ items: ['Timber', 'Screws'], total: 115 }))
-      .mockResolvedValueOnce(mistralReply({ items: ['Delivery'] }))
-      .mockResolvedValueOnce(mistralReply({ total: 120, note: 'EFTPOS' }));
+  it('sends every photo in one Mistral request and caps input at four', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      mistralReply({
+        merchant: 'Multi Page Co',
+        date: '2026-08-21',
+        total: '120.00',
+        kind: 'expense',
+        category: 'Equipment',
+        items: ['Timber', 'Screws', 'Delivery'],
+        note: 'Invoice 42 · EFTPOS',
+      }),
+    );
     const files = Array.from({ length: 6 }, (_, i) => ({
       blob: new Blob([String(i)], { type: 'image/webp' }),
       kind: 'webp' as const,
@@ -145,9 +145,10 @@ describe('extractReceipt', () => {
       items: ['Timber', 'Screws', 'Delivery'],
       note: 'Invoice 42 · EFTPOS',
     });
-    expect(spy).toHaveBeenCalledTimes(4);
-    const secondBody = JSON.parse(String(spy.mock.calls[1][1]?.body));
-    expect(secondBody.document_annotation_prompt).toContain('page/photo 2 of 4');
+    // 一次请求带上全部页面：模型自己跨页合并，不再需要客户端顺序请求。
+    expect(spy).toHaveBeenCalledTimes(1);
+    const content = JSON.parse(String(spy.mock.calls[0][1]?.body)).messages[0].content;
+    expect(content.filter((c: { type: string }) => c.type === 'image_url')).toHaveLength(4);
   });
 
   it('caps items list, drops junk entries and truncates notes', async () => {
@@ -316,7 +317,9 @@ describe('extractReceipt', () => {
 
   it('surfaces malformed provider JSON as parse', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({ document_annotation: 'not json' }), { status: 200 }),
+      new Response(JSON.stringify({ choices: [{ message: { content: 'not json' } }] }), {
+        status: 200,
+      }),
     );
     await expect(extractReceipt([file], MISTRAL_OPTS)).rejects.toMatchObject({ reason: 'parse' });
   });
