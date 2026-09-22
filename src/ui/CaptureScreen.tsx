@@ -205,10 +205,15 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         setTimeout(() => setCategory(canonical), 0);
       }
     } catch (e) {
-      if (e instanceof ExtractError && e.reason === 'auth') setError(t('aiErrAuth'));
-      else if (e instanceof ExtractError && e.reason === 'rate_limit') setError(t('aiErrRate'));
-      else if (e instanceof ExtractError && e.reason === 'network') setError(t('aiErrNetwork'));
-      else if (e instanceof ExtractError && e.reason === 'request') setError(t('aiErrRequest'));
+      // 服务端的原话是唯一能区分"突发限流"和"额度没生效"的线索，直接显示出来。
+      const detail = e instanceof ExtractError && e.detail ? ` (${e.detail})` : '';
+      if (e instanceof ExtractError && e.reason === 'auth') setError(t('aiErrAuth') + detail);
+      else if (e instanceof ExtractError && e.reason === 'rate_limit')
+        setError(t('aiErrRate') + detail);
+      else if (e instanceof ExtractError && e.reason === 'network')
+        setError(t('aiErrNetwork') + detail);
+      else if (e instanceof ExtractError && e.reason === 'request')
+        setError(t('aiErrRequest') + detail);
       else if (e instanceof ExtractError && e.reason === 'empty') setError(t('aiErrEmpty'));
       else setError(t('aiErrOther'));
     } finally {

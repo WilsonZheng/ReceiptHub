@@ -225,6 +225,39 @@ describe('extractReceipt', () => {
     expect(new ExtractError('rate_limit').reason).toBe('rate_limit');
   });
 
+  it('carries the provider error detail on 429 so the real cause is diagnosable', async () => {
+    // 实测的 Mistral 429 响应体；限流头在浏览器里被 CORS 挡住，body 是唯一能读到的线索。
+    const body = JSON.stringify({
+      object: 'error',
+      message: 'Rate limit exceeded',
+      type: 'rate_limited',
+      param: null,
+      code: '1300',
+      raw_status_code: 429,
+    });
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(body, { status: 429, headers: { 'Retry-After': '0' } }),
+    );
+    await expect(extractReceipt([file], MISTRAL_OPTS)).rejects.toMatchObject({
+      reason: 'rate_limit',
+      status: 429,
+      detail: 'Rate limit exceeded (1300)',
+    });
+  });
+
+  it("carries Gemini's nested error message as detail", async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({ error: { status: 'RESOURCE_EXHAUSTED', message: 'Quota exceeded' } }),
+        { status: 429, headers: { 'Retry-After': '0' } },
+      ),
+    );
+    await expect(extractReceipt([file], GEMINI_OPTS)).rejects.toMatchObject({
+      reason: 'rate_limit',
+      detail: 'Quota exceeded',
+    });
+  });
+
   it('maps 401 to auth and does not retry it', async () => {
     const spy = vi
       .spyOn(globalThis, 'fetch')

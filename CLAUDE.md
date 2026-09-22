@@ -81,7 +81,9 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 - Mistral OCR 每请求只接一个 document：多张照片/PDF（上限 4）顺序请求，既降低免费层并发限流，又按同一票据合并；商家/日期取首个、最终总额取最后一个、items/notes 去重合并。
 - **Gemini（兼容选项）**：`gemini-2.5-flash`，图片/PDF 走 `inline_data`，多页合并进一个请求；请求体超过约 18.5MB 在客户端拒绝。浏览器 CORS 已实测支持。
 - 两条路径共享结构化校验：日期正则、金额限幅、分类大小写归并或限长提名、items/note 截断；数字字符串金额也可容错解析。
-- 429、408/425、5xx 和浏览器网络故障最多重试 3 次并尊重 `Retry-After`（最长等 10 秒）。错误分为 key / 限流 / 网络 / 文件请求 / 空识别 / 解析；**2xx 无内容不许再静默返回 `{}`**。
+- 429、408/425、5xx 和浏览器网络故障最多重试 3 次并尊重 `Retry-After`（最长等 10 秒）。错误分为 key / 限流 / 网络 / 文件请求 / 空识别 / 解析；**2xx 无内容不许再静默返回 `{}`**，错误响应也必须把服务端原话带进 `ExtractError.detail` 并显示出来。
+- **浏览器读不到 Mistral 的限流头**：它的响应只有 `access-control-allow-origin: *`，没有 `Access-Control-Expose-Headers`，所以 `x-ratelimit-*` 和 `Retry-After` 在 fetch 里一律是 `null`——`retryDelay` 的 `Retry-After` 分支实际只在 curl/服务端场景生效，浏览器里永远走固定退避。响应体是唯一能读到的线索。
+- **429 不等于"用超了"**：Mistral 账号没有生效的 API 额度时，所有端点（OCR 和 chat 都一样）返回 429 `Rate limit exceeded` code 1300，且响应头是 `x-ratelimit-limit-req-minute: 0`——**限额本身就是 0**，等多久都不会恢复。判断方法是用 curl 打一次看这个头；`/v1/models` 不受限流，能 200 不代表账号能用。控制台的美元用量和限流是两块互不相干的表。
 
 ## 前端约定
 

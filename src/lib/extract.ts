@@ -23,6 +23,8 @@ export class ExtractError extends Error {
   constructor(
     public reason: ExtractReason,
     public status?: number,
+    // 服务端自己的说明。限流头在浏览器里被 CORS 挡住，响应体是唯一能读到的线索。
+    public detail?: string,
   ) {
     super(`extract failed: ${reason}`);
   }
@@ -177,24 +179,52 @@ async function postJson(
   throw new ExtractError('network');
 }
 
+// Mistral 用顶层 `message`/`code`，Gemini 用嵌套 `error.message`；两边都提取成一句话。
+function errorDetail(text: string): string | undefined {
+  const raw = text.trim();
+  if (!raw) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') {
+      const obj = parsed as { message?: unknown; code?: unknown; error?: { message?: unknown } };
+      const message =
+        typeof obj.message === 'string'
+          ? obj.message
+          : typeof obj.error?.message === 'string'
+            ? obj.error.message
+            : undefined;
+      if (message) {
+        const code =
+          typeof obj.code === 'string' || typeof obj.code === 'number' ? String(obj.code) : '';
+        return (code ? `${message} (${code})` : message).slice(0, 200);
+      }
+    }
+  } catch {
+    // 非 JSON 的错误体照样有诊断价值，原样截断带出去。
+  }
+  return raw.slice(0, 200);
+}
+
 async function throwForStatus(res: Response): Promise<void> {
-  if (res.status === 401 || res.status === 403) throw new ExtractError('auth', res.status);
-  if (res.status === 429) throw new ExtractError('rate_limit', res.status);
+  if (res.ok) return;
+  const raw = await res
+    .clone()
+    .text()
+    .catch(() => '');
+  const detail = errorDetail(raw);
+  if (res.status === 401 || res.status === 403) throw new ExtractError('auth', res.status, detail);
+  if (res.status === 429) throw new ExtractError('rate_limit', res.status, detail);
   if (res.status === 400) {
     // Gemini 的无效 key 历史上会返回 400，而格式/模型错误也是 400；不能再一刀切。
-    const detail = await res
-      .clone()
-      .text()
-      .catch(() => '');
-    if (/API_KEY_INVALID|API key not valid|invalid[^\n]{0,30}api.?key/i.test(detail)) {
-      throw new ExtractError('auth', res.status);
+    if (/API_KEY_INVALID|API key not valid|invalid[^\n]{0,30}api.?key/i.test(raw)) {
+      throw new ExtractError('auth', res.status, detail);
     }
-    throw new ExtractError('request', res.status);
+    throw new ExtractError('request', res.status, detail);
   }
   if (res.status === 413 || res.status === 415 || res.status === 422) {
-    throw new ExtractError('request', res.status);
+    throw new ExtractError('request', res.status, detail);
   }
-  if (!res.ok) throw new ExtractError('network', res.status);
+  throw new ExtractError('network', res.status, detail);
 }
 
 function parseJsonText(value: unknown): RawExtraction {
