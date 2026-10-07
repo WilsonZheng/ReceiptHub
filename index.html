@@ -10,7 +10,42 @@
     <meta name="theme-color" content="#050505" />
     <link rel="apple-touch-icon" href="/ReceiptHub/icons/apple-touch-icon.png" />
     <link rel="icon" type="image/png" href="/ReceiptHub/icons/icon-192.png" />
+    <!-- iOS 冷启动画面（尺寸与设备物理像素一致才生效；node scripts/gen-icons.mjs 生成） -->
+    <link
+      rel="apple-touch-startup-image"
+      media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)"
+      href="/ReceiptHub/splash/splash-1320x2868-dark.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)"
+      href="/ReceiptHub/splash/splash-1320x2868-light.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="screen and (device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: dark)"
+      href="/ReceiptHub/splash/splash-1206x2622-dark.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      media="screen and (device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait) and (prefers-color-scheme: light)"
+      href="/ReceiptHub/splash/splash-1206x2622-light.png"
+    />
     <title>ReceiptHub</title>
+    <!-- 首帧前定主题和底色：冷启动、更新刷新时都不闪白（与 lib/theme.ts 同一规则） -->
+    <script>
+      (function () {
+        var t = 'dark';
+        try {
+          t = localStorage.getItem('rh.theme');
+          if (t !== 'dark' && t !== 'light')
+            t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        } catch (e) {}
+        var el = document.documentElement;
+        el.dataset.theme = t;
+        el.style.background = t === 'light' ? '#f2f2f7' : '#050505';
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

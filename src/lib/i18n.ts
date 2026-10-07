@@ -235,6 +235,20 @@ const en = {
   authBanner: 'GitHub token rejected: update your PAT in Settings.',
   dismiss: 'Dismiss',
   updateReady: 'New version ready, tap here to update',
+  updating: 'Updating…',
+  updatedTo: 'Updated · {v}',
+  updateDiscardConfirm: 'Updating now discards what you are entering. Update anyway?',
+  about: 'About',
+  version: 'Version',
+  checkUpdate: 'Check for updates',
+  checkingUpdate: 'Checking…',
+  upToDate: 'You have the latest version',
+  updateAvailable: 'A new version is ready',
+  updateNow: 'Update now',
+  updateCheckFailed: 'Could not check. Are you online?',
+  updateUnsupported: 'Update checks are not available here',
+  autoUpdateHint:
+    'New versions install by themselves when you leave the app with nothing unsaved, and you stay on the same page.',
 } as const;
 
 export type MsgKey = keyof typeof en;
@@ -460,6 +474,19 @@ const zh: Record<MsgKey, string> = {
   authBanner: 'GitHub token 被拒绝：请到设置中更新 PAT。',
   dismiss: '关闭',
   updateReady: '新版本已就绪，点这里更新',
+  updating: '正在更新…',
+  updatedTo: '已更新 · {v}',
+  updateDiscardConfirm: '现在更新会丢掉正在录入的内容，仍然更新吗？',
+  about: '关于',
+  version: '版本',
+  checkUpdate: '检查更新',
+  checkingUpdate: '正在检查…',
+  upToDate: '已是最新版本',
+  updateAvailable: '新版本已就绪',
+  updateNow: '立即更新',
+  updateCheckFailed: '检查失败，请确认网络连接',
+  updateUnsupported: '当前环境不支持检查更新',
+  autoUpdateHint: '没有未保存的内容时，离开 App 就会自动装好新版本，回来仍停在原来的页面。',
 };
 
 const dicts: Record<Locale, Record<MsgKey, string>> = { en, zh };

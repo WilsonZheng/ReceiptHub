@@ -1,4 +1,4 @@
-// 零依赖 PWA 图标生成器：深色底 + 收据图形（锯齿底边 + 文字行）
+// 零依赖 PWA 图标 + iOS 启动画面生成器：深色底 + 收据图形（锯齿底边 + 文字行）
 // 用法: node scripts/gen-icons.mjs
 import { deflateSync } from 'node:zlib';
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -27,21 +27,22 @@ function chunk(type, data) {
   return Buffer.concat([len, body, crc]);
 }
 
-function png(size, pixelFn) {
-  const raw = Buffer.alloc(size * (size * 3 + 1));
-  for (let y = 0; y < size; y++) {
-    raw[y * (size * 3 + 1)] = 0; // filter: none
-    for (let x = 0; x < size; x++) {
-      const [r, g, b] = pixelFn(x / size, y / size);
-      const off = y * (size * 3 + 1) + 1 + x * 3;
+// pixelFn 收到的是像素坐标 (x, y)；正方形图标用 square() 包一层换成归一化坐标
+function png(width, height, pixelFn) {
+  const raw = Buffer.alloc(height * (width * 3 + 1));
+  for (let y = 0; y < height; y++) {
+    raw[y * (width * 3 + 1)] = 0; // filter: none
+    for (let x = 0; x < width; x++) {
+      const [r, g, b] = pixelFn(x, y);
+      const off = y * (width * 3 + 1) + 1 + x * 3;
       raw[off] = r;
       raw[off + 1] = g;
       raw[off + 2] = b;
     }
   }
   const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(size, 0);
-  ihdr.writeUInt32BE(size, 4);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
   ihdr[8] = 8; // bit depth
   ihdr[9] = 2; // RGB
   return Buffer.concat([
@@ -79,6 +80,39 @@ for (const [name, size] of [
   ['icon-512.png', 512],
   ['apple-touch-icon.png', 180],
 ]) {
-  writeFileSync(`public/icons/${name}`, png(size, pixel));
+  writeFileSync(
+    `public/icons/${name}`,
+    png(size, size, (x, y) => pixel(x / size, y / size)),
+  );
   console.log(`wrote public/icons/${name}`);
+}
+
+// iOS 启动画面（apple-touch-startup-image）：不配的话 PWA 冷启动先白屏一下。
+// 尺寸必须与设备物理像素完全一致，否则 iOS 忽略。深色 = 图形直接浮在底色上；
+// 浅色 = 分组浅灰底 + 圆角深色 App 图标。index.html 里的 media 查询要同步。
+const LIGHT_BG = [0xf2, 0xf2, 0xf7]; // tokens（light）: --color-bg
+const SPLASHES = [
+  [1320, 2868], // 6.9 英寸 Pro Max（16 / 17 / 18 Pro Max，440×956 pt @3x）
+  [1206, 2622], // 6.3 英寸 Pro（16 / 17 Pro，402×874 pt @3x）
+];
+mkdirSync('public/splash', { recursive: true });
+for (const [w, h] of SPLASHES) {
+  const side = Math.round(w * 0.3);
+  const x0 = Math.round((w - side) / 2);
+  const y0 = Math.round((h - side) / 2);
+  const radius = side * 0.225;
+  const inIcon = (x, y) => {
+    const dx = Math.max(x0 + radius - x, 0, x - (x0 + side - radius));
+    const dy = Math.max(y0 + radius - y, 0, y - (y0 + side - radius));
+    return x >= x0 && x < x0 + side && y >= y0 && y < y0 + side && dx * dx + dy * dy <= radius ** 2;
+  };
+  for (const mode of ['dark', 'light']) {
+    const name = `splash-${w}x${h}-${mode}.png`;
+    const bg = mode === 'dark' ? BG : LIGHT_BG;
+    writeFileSync(
+      `public/splash/${name}`,
+      png(w, h, (x, y) => (inIcon(x, y) ? pixel((x - x0) / side, (y - y0) / side) : bg)),
+    );
+    console.log(`wrote public/splash/${name}`);
+  }
 }

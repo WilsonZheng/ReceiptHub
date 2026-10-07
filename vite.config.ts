@@ -3,9 +3,24 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { execSync } from 'node:child_process';
+
+// 版本号 = 构建时刻 + 提交短哈希：设置页显示、更新后提示用。CI 里 GITHUB_SHA 优先
+function commitSha(): string {
+  if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA.slice(0, 7);
+  try {
+    return execSync('git rev-parse --short=7 HEAD').toString().trim();
+  } catch {
+    return 'dev';
+  }
+}
 
 export default defineConfig({
   base: '/ReceiptHub/',
+  define: {
+    __APP_COMMIT__: JSON.stringify(commitSha()),
+    __APP_BUILT_AT__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     tailwindcss(),

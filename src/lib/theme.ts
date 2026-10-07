@@ -25,6 +25,8 @@ const listeners = new Set<() => void>();
 function apply(t: Theme): void {
   if (typeof document === 'undefined') return;
   document.documentElement.dataset.theme = t;
+  // index.html 首帧脚本给 <html> 设了内联底色，切换主题时一并更新
+  document.documentElement.style.background = META_COLORS[t];
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', META_COLORS[t]);
 }
 

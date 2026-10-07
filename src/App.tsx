@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useRegisterSW } from 'virtual:pwa-register/react';
 import { getPat } from './lib/settings';
 import type { Space } from './data/types';
 import { onAuthError, syncNow } from './sync/useSync';
@@ -15,13 +14,33 @@ import { TopNav, type Tab } from './ui/components/TopNav';
 import { SyncDot } from './ui/components/SyncDot';
 import { TaxScreen } from './ui/TaxScreen';
 import { taskTitle, useTaxAgenda, whenText } from './ui/taxAgenda';
-import { CalendarClock, X } from 'lucide-react';
+import { CalendarClock, Check, RefreshCw, X } from 'lucide-react';
 import { addDays } from './lib/taxCalendar';
+import { consumeJustUpdated, versionLabel } from './lib/appVersion';
+import { useAppUpdate } from './ui/useAppUpdate';
+
+// 每次页面加载只算一次（放模块级：StrictMode 会把 useState 初始化跑两遍）
+const JUST_UPDATED = consumeJustUpdated();
+
+// 当前 Tab 和空间存 sessionStorage：更新刷新后回到原来的页面，而不是跳回拍照页
+const UI_KEY = 'rh.ui';
+function loadUi(): { tab: Tab; space: Space } {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(UI_KEY) ?? '{}') as Partial<{
+      tab: Tab;
+      space: Space;
+    }>;
+    return { tab: v.tab ?? 'capture', space: v.space ?? 'company' };
+  } catch {
+    return { tab: 'capture', space: 'company' };
+  }
+}
 
 export default function App() {
   const [unlocked, setUnlocked] = useState(() => !!getPat());
-  const [tab, setTab] = useState<Tab>('capture');
-  const [space, setSpace] = useState<Space>('company');
+  const [tab, setTab] = useState<Tab>(() => loadUi().tab);
+  const [space, setSpace] = useState<Space>(() => loadUi().space);
+  const [showUpdated, setShowUpdated] = useState(JUST_UPDATED);
   const [authBanner, setAuthBanner] = useState(false);
   const [taxBannerDismissed, setTaxBannerDismissed] = useState(false);
   const t = useT();
@@ -30,15 +49,27 @@ export default function App() {
   // 最紧急的一件：逾期或 7 天内到期才在每页顶部提醒（14 天内只亮角标，不打扰）
   const taxDue = tax.urgent.find((x) => x.due <= addDays(tax.today, 7)) ?? null;
 
-  // 新版本就绪时弹横幅，点击即切换；长会话每小时后台查一次更新
-  const {
-    needRefresh: [needRefresh],
-    updateServiceWorker,
-  } = useRegisterSW({
-    onRegisteredSW(_url, registration) {
-      if (registration) setInterval(() => void registration.update(), 60 * 60 * 1000);
-    },
-  });
+  const update = useAppUpdate();
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(UI_KEY, JSON.stringify({ tab, space }));
+    } catch {
+      /* 存不了就算了：只影响刷新后停在哪个 Tab */
+    }
+  }, [tab, space]);
+
+  useEffect(() => {
+    if (!showUpdated) return;
+    const id = setTimeout(() => setShowUpdated(false), 4000);
+    return () => clearTimeout(id);
+  }, [showUpdated]);
+
+  function tapUpdate() {
+    // 有正在录入的内容时先确认：草稿只在内存里，刷新会丢
+    if (!update.safeToReload() && !window.confirm(t('updateDiscardConfirm'))) return;
+    update.apply();
+  }
 
   useEffect(() => {
     onAuthError(() => setAuthBanner(true));
@@ -85,28 +116,56 @@ export default function App() {
     }
   }
 
-  // 悬浮胶囊按钮：圆角+阴影+呼吸动画，明确"可点击"
-  const updateBanner = needRefresh && (
-    <div className="drop-in pointer-events-none fixed inset-x-0 top-[max(env(safe-area-inset-top),0.5rem)] z-50 flex justify-center">
-      <button
-        onClick={() => void updateServiceWorker(true)}
-        className="update-pulse pointer-events-auto rounded-full px-5 py-2.5 text-sm font-bold"
-        style={{
-          background: 'var(--color-accent)',
-          color: 'var(--color-accent-ink)',
-          // 跟随 accent token（旧值 rgba(61,220,151) 是改版前的死绿 #3ddc97，与当前 #00ff66 不符）
-          boxShadow: '0 6px 20px color-mix(in srgb, var(--color-accent) 45%, transparent)',
-        }}
-      >
-        ⟳ {t('updateReady')}
-      </button>
-    </div>
+  // 更新相关的浮层：就绪横幅（点一下更新）、更新中遮罩（淡入盖住刷新瞬间）、更新完成提示
+  const updateLayer = (
+    <>
+      {update.needRefresh && !update.applying && (
+        <div className="drop-in pointer-events-none fixed inset-x-0 top-[max(env(safe-area-inset-top),0.5rem)] z-50 flex justify-center">
+          <button
+            onClick={tapUpdate}
+            className="update-pulse pointer-events-auto rounded-full px-5 py-2.5 text-sm font-bold"
+            style={{
+              background: 'var(--color-accent)',
+              color: 'var(--color-accent-ink)',
+              boxShadow: '0 6px 20px color-mix(in srgb, var(--color-accent) 45%, transparent)',
+            }}
+          >
+            {t('updateReady')}
+          </button>
+        </div>
+      )}
+      {update.applying && (
+        <div
+          className="fade-in fixed inset-0 z-[70] flex flex-col items-center justify-center gap-3"
+          style={{ background: 'var(--color-bg)' }}
+          role="status"
+        >
+          <RefreshCw
+            className="ptr-spin h-6 w-6"
+            style={{ color: 'var(--color-accent)' }}
+            aria-hidden="true"
+          />
+          <span className="text-sm muted">{t('updating')}</span>
+        </div>
+      )}
+      {showUpdated && (
+        <div className="drop-in pointer-events-none fixed inset-x-0 top-[max(env(safe-area-inset-top),0.5rem)] z-50 flex justify-center">
+          <span
+            className="panel flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold"
+            role="status"
+          >
+            <Check className="icon" style={{ color: 'var(--color-accent)' }} aria-hidden="true" />
+            {t('updatedTo').replace('{v}', versionLabel())}
+          </span>
+        </div>
+      )}
+    </>
   );
 
   if (!unlocked)
     return (
       <>
-        {updateBanner}
+        {updateLayer}
         <LockScreen onUnlock={() => setUnlocked(true)} />
       </>
     );
@@ -121,7 +180,7 @@ export default function App() {
         paddingRight: 'env(safe-area-inset-right)',
       }}
     >
-      {updateBanner}
+      {updateLayer}
       {authBanner && (
         <div
           className="drop-in px-4 py-2 text-center text-xs font-semibold"
@@ -204,7 +263,12 @@ export default function App() {
           {tab === 'stats' && <DashboardScreen space={space} onCapture={() => setTab('capture')} />}
           {tab === 'tax' && <TaxScreen />}
           {tab === 'export' && <ExportScreen space={space} />}
-          {tab === 'settings' && <SettingsScreen onPatCleared={() => setUnlocked(false)} />}
+          {tab === 'settings' && (
+            <SettingsScreen
+              onPatCleared={() => setUnlocked(false)}
+              update={{ needRefresh: update.needRefresh, apply: tapUpdate, check: update.check }}
+            />
+          )}
         </div>
       </main>
     </div>

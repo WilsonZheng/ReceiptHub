@@ -73,7 +73,9 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 2. 输入框字号 <16px → iOS 聚焦时强制放大整页且不回弹。`.field` 必须 ≥16px。
 3. 安全区：`viewport-fit=cover` 与 `env(safe-area-inset-*)` 必须配套；顶部 padding 挂在 `.app-shell` 上。
 4. **原生 `<input type="date">` 的语言跟随 iOS 系统**，页面 lang 管不了——所以自绘了 `DateField`（底部抽屉日历，`lib/calendar.ts` 纯函数网格）。
-5. PWA 更新：`registerType: 'prompt'` + 应用内横幅一键刷新（autoUpdate 会在用户填表时突然 reload）。另有下拉刷新手势触发 sync + SW update 检查。e2e 里 `serviceWorkers: 'block'` 防更新横幅干扰断言。
+5. PWA 更新：`registerType: 'prompt'`（autoUpdate 会在用户填表时突然 reload），逻辑在 `ui/useAppUpdate.ts`：**没有未保存内容**（拍照草稿 `isDraftDirty`、详情编辑中 `lib/busy.ts`）时，冷启动 5 秒内发现新版直接淡出套用、切到后台时套用；否则显示横幅，点一下淡出刷新（有草稿先 confirm）。当前 Tab/空间存 sessionStorage（`rh.ui`），刷新后回到原页面；刷新后顶部提示"已更新 · 版本"（`rh.version` 比对）。版本号 = 构建日期 + 提交短哈希（`vite.config.ts` 的 `define`，CI 用 `GITHUB_SHA`），设置页「关于」可手动检查更新。e2e 里 `serviceWorkers: 'block'`，真实更新流程要另起 preview 手测（先 build A、打开、再 build B、点检查更新）。
+9. **不闪白**：`index.html` 首帧内联脚本按 `rh.theme` 设 `data-theme` 和 `<html>` 底色（`lib/theme.ts` 切换时同步）；冷启动画面 `apple-touch-startup-image` 只有像素尺寸与设备完全一致才生效，目前覆盖 440×956@3（6.9 英寸 Pro Max）和 402×874@3（6.3 英寸 Pro），深浅各一张，`node scripts/gen-icons.mjs` 生成。
+10. 详情页支持**左边缘右滑返回**（起手 ≤28px、拖过 90px）：大屏 iPhone 单手够不到左上角返回键。拖动距离存在 ref 里，不能读 state（快速甩动时事件比渲染快）。
 6. iOS 没有系统级下拉刷新（App.tsx 自实现，touch 事件 + 阻尼）；橡皮筋用 `overscroll-behavior` 锁。
 7. Google Drive 上传无需任何代码：iOS 文件选择器的「浏览」= 系统 Files App，Drive/Dropbox 是其官方接入方。不要去接 Google Picker API。
 8. **`backdrop-filter` 双重陷阱**：它让元素变成原子层叠上下文（内部 z-index 出不去，菜单会被后续内容盖住）且成为 `fixed` 后代的包含块（全屏遮罩缩成自身大小）。规则：毛玻璃只放在纯视觉壳上，绝对/固定定位的弹层（菜单、遮罩）必须挂在**无滤镜的外层**（见 TopNav 结构）。

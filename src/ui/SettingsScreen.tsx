@@ -20,6 +20,8 @@ import { setLocale, useLocale, useT, type Locale } from '../lib/i18n';
 import { categoryLabel, isBuiltinCategory } from '../lib/categories';
 import { setTheme, useTheme, type Theme } from '../lib/theme';
 import { syncNow, useSyncStatus } from '../sync/useSync';
+import { versionLabel } from '../lib/appVersion';
+import type { CheckResult } from './useAppUpdate';
 import type { AppConfig, Kind, Space } from '../data/types';
 
 function Pill({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
@@ -39,7 +41,20 @@ function Pill({ active, label, onClick }: { active: boolean; label: string; onCl
   );
 }
 
-export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
+interface UpdateControls {
+  needRefresh: boolean;
+  apply: () => void;
+  check: () => Promise<CheckResult>;
+}
+
+export function SettingsScreen({
+  onPatCleared,
+  update,
+}: {
+  onPatCleared: () => void;
+  update: UpdateControls;
+}) {
+  const [checkState, setCheckState] = useState<CheckResult | 'idle' | 'checking'>('idle');
   const { status, pending } = useSyncStatus();
   const [counts, setCounts] = useState({ receipts: 0, photos: 0 });
   const [config, setLocalConfig] = useState(getConfig());
@@ -113,6 +128,15 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
     setShowAiKey(false);
   }
 
+  async function checkForUpdate() {
+    setCheckState('checking');
+    setCheckState(await update.check());
+  }
+  const checkMsg: Partial<
+    Record<CheckResult, 'upToDate' | 'updateCheckFailed' | 'updateUnsupported'>
+  > = { latest: 'upToDate', error: 'updateCheckFailed', unsupported: 'updateUnsupported' };
+  const checkMsgKey = checkState in checkMsg ? checkMsg[checkState as CheckResult] : undefined;
+
   return (
     <div className="screen-wrap grid gap-4 py-2 text-sm lg:grid-cols-2 lg:items-start">
       <section className="panel panel-pad">
@@ -143,6 +167,47 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
             ))}
           </div>
         </div>
+      </section>
+
+      {/* 关于：当前版本 + 手动检查更新 */}
+      <section className="panel panel-pad">
+        <h3 className="font-bold">{t('about')}</h3>
+        <div className="mt-2 flex items-center justify-between gap-3">
+          <span style={{ color: 'var(--color-ink-muted)' }}>{t('version')}</span>
+          <span className="amount text-sm">{versionLabel()}</span>
+        </div>
+        {update.needRefresh ? (
+          <button onClick={update.apply} className="btn-primary mt-3 w-full text-sm">
+            <RefreshCw className="icon" aria-hidden="true" />
+            {t('updateAvailable')} · {t('updateNow')}
+          </button>
+        ) : (
+          <button
+            onClick={() => void checkForUpdate()}
+            disabled={checkState === 'checking'}
+            className="btn-secondary mt-3 w-full disabled:opacity-60"
+          >
+            <RefreshCw
+              className={`icon ${checkState === 'checking' ? 'ptr-spin' : ''}`}
+              aria-hidden="true"
+            />
+            {checkState === 'checking' ? t('checkingUpdate') : t('checkUpdate')}
+          </button>
+        )}
+        {checkMsgKey && !update.needRefresh && (
+          <p
+            className="mt-2 text-center text-xs"
+            role="status"
+            style={{
+              color: checkState === 'latest' ? 'var(--color-accent)' : 'var(--color-ink-muted)',
+            }}
+          >
+            {t(checkMsgKey)}
+          </p>
+        )}
+        <p className="mt-2 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
+          {t('autoUpdateHint')}
+        </p>
       </section>
 
       <section className="panel panel-pad">

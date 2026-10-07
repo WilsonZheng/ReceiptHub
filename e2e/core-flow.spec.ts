@@ -564,3 +564,46 @@ test('tax page: next deadline, reminders, done state, checks, guides', async ({ 
   await page.getByRole('button', { name: 'Add all to phone calendar' }).click();
   expect((await downloadPromise).suggestedFilename()).toBe('receipthub-tax-deadlines.ics');
 });
+
+test('settings shows the version and can check for updates; tab survives reload', async ({
+  page,
+}) => {
+  await openMore(page, 'Settings');
+  await expect(page.getByText(/^\d{4}\.\d{2}\.\d{2} · \w+$/)).toBeVisible(); // 版本号
+  await page.getByRole('button', { name: 'Check for updates' }).click();
+  // e2e 屏蔽了 service worker，检查结果应如实说明，而不是假装"已是最新"
+  await expect(page.getByText('Update checks are not available here')).toBeVisible();
+
+  // 刷新（例如更新后自动刷新）仍停在当前 Tab
+  await page.getByRole('button', { name: 'Stats' }).click();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Stats' })).toHaveAttribute('aria-current', 'true');
+});
+
+test.describe('touch', () => {
+  test.use({ hasTouch: true });
+  test('swipe from the left edge goes back from a receipt', async ({ page }) => {
+    await addReceipt(page, 'Swipe Cafe', '9.50', 'Other');
+    await page.getByText('Swipe Cafe').click();
+    await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible();
+    // 模拟从左边缘 10px 处向右拖 200px
+    await page.evaluate(() => {
+      const target = document.querySelector('.push-in')!;
+      const touch = (x: number) => new Touch({ identifier: 1, target, clientX: x, clientY: 400 });
+      const fire = (type: string, x: number) =>
+        target.dispatchEvent(
+          new TouchEvent(type, {
+            bubbles: true,
+            cancelable: true,
+            touches: type === 'touchend' ? [] : [touch(x)],
+            changedTouches: [touch(x)],
+          }),
+        );
+      fire('touchstart', 10);
+      for (const x of [30, 80, 140, 210]) fire('touchmove', x);
+      fire('touchend', 210);
+    });
+    await expect(page.getByRole('button', { name: 'Back', exact: true })).not.toBeVisible();
+    await expect(page.getByPlaceholder(/Search merchant/)).toBeVisible(); // 回到列表
+  });
+});
