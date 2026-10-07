@@ -8,12 +8,10 @@ import {
   getAiKey,
   getAiProvider,
   getConfig,
-  getGstFrequency,
   setAiKey,
   setAiProvider,
   setCategoryLabel,
   setConfig,
-  setGstFrequency,
   DATA_REPO,
   type AiProvider,
 } from '../lib/settings';
@@ -23,7 +21,6 @@ import { categoryLabel, isBuiltinCategory } from '../lib/categories';
 import { setTheme, useTheme, type Theme } from '../lib/theme';
 import { syncNow, useSyncStatus } from '../sync/useSync';
 import type { AppConfig, Kind, Space } from '../data/types';
-import type { GstFrequency } from '../lib/periods';
 
 function Pill({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
@@ -50,7 +47,6 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
   const [aiKey, setAiKeyLocal] = useState(() => getAiKey(getAiProvider()) ?? '');
   const [aiSaved, setAiSaved] = useState(false);
   const [showAiKey, setShowAiKey] = useState(false);
-  const [gstFreq, setGstFreqLocal] = useState<GstFrequency>(getGstFrequency);
   // 自定义分类的双语译名就地编辑：一次编辑一个，editingLabel 存 canonical key
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
   const [labelDraft, setLabelDraft] = useState('');
@@ -109,12 +105,6 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
     { value: 'gemini', label: 'Gemini' },
   ];
 
-  function chooseGstFreq(f: GstFrequency) {
-    setGstFrequency(f);
-    setGstFreqLocal(f);
-  }
-  const twoMonthly = gstFreq === 'two-odd' || gstFreq === 'two-even';
-
   function chooseAiProvider(provider: AiProvider) {
     setAiProvider(provider);
     setAiProviderLocal(provider);
@@ -153,51 +143,6 @@ export function SettingsScreen({ onPatCleared }: { onPatCleared: () => void }) {
             ))}
           </div>
         </div>
-      </section>
-
-      {/* 税务：GST 申报频率决定统计/导出里的 GST 期 */}
-      <section className="panel panel-pad">
-        <h3 className="font-bold">{t('tax')}</h3>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <span style={{ color: 'var(--color-ink-muted)' }}>{t('gstFiling')}</span>
-          <div className="flex gap-1.5" role="group" aria-label={t('gstFiling')}>
-            <Pill
-              active={gstFreq === 'monthly'}
-              label={t('freqMonthly')}
-              onClick={() => chooseGstFreq('monthly')}
-            />
-            <Pill
-              active={twoMonthly}
-              label={t('freqTwo')}
-              onClick={() => !twoMonthly && chooseGstFreq('two-odd')}
-            />
-            <Pill
-              active={gstFreq === 'six'}
-              label={t('freqSix')}
-              onClick={() => chooseGstFreq('six')}
-            />
-          </div>
-        </div>
-        {twoMonthly && (
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-            <span style={{ color: 'var(--color-ink-muted)' }}>{t('periodEnds')}</span>
-            <div className="flex gap-1.5" role="group" aria-label={t('periodEnds')}>
-              <Pill
-                active={gstFreq === 'two-odd'}
-                label={t('oddMonths')}
-                onClick={() => chooseGstFreq('two-odd')}
-              />
-              <Pill
-                active={gstFreq === 'two-even'}
-                label={t('evenMonths')}
-                onClick={() => chooseGstFreq('two-even')}
-              />
-            </div>
-          </div>
-        )}
-        <p className="mt-2 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-          {t('gstFilingHint')}
-        </p>
       </section>
 
       <section className="panel panel-pad">

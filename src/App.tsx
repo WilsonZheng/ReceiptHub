@@ -3,7 +3,7 @@ import { useRegisterSW } from 'virtual:pwa-register/react';
 import { getPat } from './lib/settings';
 import type { Space } from './data/types';
 import { onAuthError, syncNow } from './sync/useSync';
-import { useT } from './lib/i18n';
+import { useLocale, useT } from './lib/i18n';
 import { LockScreen } from './ui/LockScreen';
 import { CaptureScreen } from './ui/CaptureScreen';
 import { ReceiptsScreen } from './ui/ReceiptsScreen';
@@ -13,13 +13,22 @@ import { SettingsScreen } from './ui/SettingsScreen';
 import { SpaceToggle } from './ui/components/SpaceToggle';
 import { TopNav, type Tab } from './ui/components/TopNav';
 import { SyncDot } from './ui/components/SyncDot';
+import { TaxScreen } from './ui/TaxScreen';
+import { taskTitle, useTaxAgenda, whenText } from './ui/taxAgenda';
+import { CalendarClock, X } from 'lucide-react';
+import { addDays } from './lib/taxCalendar';
 
 export default function App() {
   const [unlocked, setUnlocked] = useState(() => !!getPat());
   const [tab, setTab] = useState<Tab>('capture');
   const [space, setSpace] = useState<Space>('company');
   const [authBanner, setAuthBanner] = useState(false);
+  const [taxBannerDismissed, setTaxBannerDismissed] = useState(false);
   const t = useT();
+  const locale = useLocale();
+  const tax = useTaxAgenda();
+  // 最紧急的一件：逾期或 7 天内到期才在每页顶部提醒（14 天内只亮角标，不打扰）
+  const taxDue = tax.urgent.find((x) => x.due <= addDays(tax.today, 7)) ?? null;
 
   // 新版本就绪时弹横幅，点击即切换；长会话每小时后台查一次更新
   const {
@@ -134,6 +143,31 @@ export default function App() {
         </div>
       </header>
       <TopNav tab={tab} onChange={setTab} />
+      {taxDue && !taxBannerDismissed && tab !== 'tax' && (
+        <div
+          className="drop-in panel mx-4 mb-2 flex items-center gap-2 px-3 py-1.5 text-xs sm:mx-6"
+          style={{ borderColor: 'var(--color-warning)' }}
+        >
+          <CalendarClock
+            className="icon shrink-0"
+            style={{ color: 'var(--color-warning)' }}
+            aria-hidden="true"
+          />
+          <button onClick={() => setTab('tax')} className="min-w-0 flex-1 text-left">
+            <span className="block truncate font-semibold">{taskTitle(taxDue, locale, t)}</span>
+            <span className="block" style={{ color: 'var(--color-warning)' }}>
+              {whenText(taxDue.due, tax.today, t)} · {t('view')}
+            </span>
+          </button>
+          <button
+            onClick={() => setTaxBannerDismissed(true)}
+            aria-label={t('dismiss')}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+          >
+            <X className="icon" aria-hidden="true" />
+          </button>
+        </div>
+      )}
       <main
         ref={mainRef}
         onTouchStart={onTouchStart}
@@ -168,6 +202,7 @@ export default function App() {
             <ReceiptsScreen space={space} onCapture={() => setTab('capture')} />
           )}
           {tab === 'stats' && <DashboardScreen space={space} onCapture={() => setTab('capture')} />}
+          {tab === 'tax' && <TaxScreen />}
           {tab === 'export' && <ExportScreen space={space} />}
           {tab === 'settings' && <SettingsScreen onPatCleared={() => setUnlocked(false)} />}
         </div>

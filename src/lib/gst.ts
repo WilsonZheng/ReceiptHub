@@ -37,3 +37,16 @@ export function gstReturn(receipts: Receipt[]): GstReturn {
   const box12 = gstOf(box11);
   return { box5, box6, box8, box11, box12, box15: box8 - box12 };
 }
+
+/**
+ * 招待费 GST 年度调整（IRD：招待费一般只能抵扣 50%，每年在一期 GST 申报的第 9 栏加回）。
+ * 按"餐饮招待"分类全额估算——出差途中自己的餐费通常可全额抵扣，实际应加回的可能更少。
+ */
+export function entertainmentAdjustment(receipts: Receipt[]): number {
+  let total = 0;
+  for (const r of receipts) {
+    if (r.deleted || r.space !== 'company' || kindOf(r) !== 'expense') continue;
+    if (r.category === 'Meals & Entertainment' && r.gstCents > 0) total += r.totalCents;
+  }
+  return Math.round((total * 3) / 23 / 2);
+}

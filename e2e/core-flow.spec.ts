@@ -514,3 +514,53 @@ test('detail edit keeps a no-GST receipt at zero GST', async ({ page }) => {
   // 之前编辑会悄悄按 3/23 重算成 $1.30
   await expect(page.getByRole('button', { name: /ANZ Bank Fee/ })).toContainText('GST $0.00');
 });
+
+test('tax page: next deadline, reminders, done state, checks, guides', async ({ page }) => {
+  // 固定到 2026-10-24：每半年 GST（4–9 月）10 月 28 日截止，还有 4 天
+  await page.clock.setFixedTime(new Date('2026-10-24T10:00:00'));
+  await page.reload();
+  await addReceipt(page, 'Noel Leeming', '1899.00', 'Equipment'); // 超过 $1,000 → 核对发票抬头
+
+  // 7 天内到期：每页顶部横幅 + 税务 Tab 角标
+  await expect(page.getByText('File GST return and pay · Apr – Sep 2026')).toBeVisible();
+  await expect(page.getByText('4 days left · View')).toBeVisible();
+  await page.getByText('4 days left · View').click();
+
+  // 下一件事
+  await expect(page.getByText('Next up')).toBeVisible();
+  await expect(page.getByText(/28 Oct 2026 · 4 days left/).first()).toBeVisible();
+  await expect(
+    page.getByText('From your receipts: nothing to pay, but you still need to file').first(),
+  ).toBeVisible();
+  // 票据检查
+  await expect(
+    page.getByText('Over $1,000: the invoice must show your company name'),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Looks fine' }).click();
+  await expect(page.getByText('Receipts to check')).not.toBeVisible();
+
+  // 标记完成 → 横幅和角标消失，下一件事变成下一个截止日
+  await page.getByRole('button', { name: 'Mark done' }).first().click();
+  await expect(
+    page.getByText('Pay the rest of the income tax · tax year 2025–26').first(),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Stats' }).click();
+  await expect(page.getByText('4 days left · View')).not.toBeVisible();
+
+  // 你的情况：需要预缴税 → 每半年 GST 下 10/28、5/7 两期
+  await page.getByRole('button', { name: 'Tax', exact: true }).click();
+  await page.getByRole('button', { name: 'Needed', exact: true }).click();
+  // 同样 10/28 到期，GST 已完成，它成为"下一件事"，列表里也有一行
+  await expect(page.getByText('Provisional tax instalment 1 of 2 · tax year 2026–27')).toHaveCount(
+    2,
+  );
+
+  // 指南展开
+  await page.getByRole('button', { name: /Companies Office annual return/ }).click();
+  await expect(page.getByText(/Find your filing month/)).toBeVisible();
+
+  // 导出日历
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Add all to phone calendar' }).click();
+  expect((await downloadPromise).suggestedFilename()).toBe('receipthub-tax-deadlines.ics');
+});

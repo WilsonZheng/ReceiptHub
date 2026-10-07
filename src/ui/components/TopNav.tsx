@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   BarChart3,
+  CalendarClock,
   Camera,
   ClipboardList,
   Download,
@@ -9,14 +10,16 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useT, type MsgKey } from '../../lib/i18n';
+import { useTaxAgenda } from '../taxAgenda';
 
-export type Tab = 'capture' | 'receipts' | 'stats' | 'export' | 'settings';
+export type Tab = 'capture' | 'receipts' | 'stats' | 'tax' | 'export' | 'settings';
 
-// 高频三项直达；低频项收进 ⋯ 菜单
+// 高频四项直达（税务带待办角标）；低频项收进 ⋯ 菜单
 const PRIMARY: { id: Tab; labelKey: MsgKey; Icon: LucideIcon }[] = [
   { id: 'capture', labelKey: 'tabCapture', Icon: Camera },
   { id: 'receipts', labelKey: 'tabReceipts', Icon: ClipboardList },
   { id: 'stats', labelKey: 'tabStats', Icon: BarChart3 },
+  { id: 'tax', labelKey: 'tabTax', Icon: CalendarClock },
 ];
 const MORE: { id: Tab; labelKey: MsgKey; Icon: LucideIcon }[] = [
   { id: 'export', labelKey: 'tabExport', Icon: Download },
@@ -27,6 +30,8 @@ export function TopNav({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void
   const [open, setOpen] = useState(false);
   const t = useT();
   const moreActive = MORE.some((m) => m.id === tab);
+  // 逾期或 14 天内到期、还没完成的税务事项数
+  const taxAlerts = useTaxAgenda().urgent.length;
 
   return (
     // 外层不带 backdrop-filter：滤镜会把 fixed 遮罩的包含块收缩到自身、并把菜单压到 main 之下
@@ -36,7 +41,8 @@ export function TopNav({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void
           <button
             key={item.id}
             onClick={() => onChange(item.id)}
-            className="flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-xs font-semibold sm:text-sm"
+            // 手机上图标在上、文字在下：四个 Tab 放得下；宽屏横排
+            className="relative flex min-h-11 min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[11px] font-semibold sm:flex-row sm:gap-1.5 sm:px-2 sm:py-2 sm:text-sm"
             style={
               tab === item.id
                 ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
@@ -45,7 +51,15 @@ export function TopNav({ tab, onChange }: { tab: Tab; onChange: (t: Tab) => void
             aria-current={tab === item.id}
           >
             <Icon className="icon" aria-hidden="true" />
-            <span>{t(item.labelKey)}</span>
+            <span className="max-w-full truncate">{t(item.labelKey)}</span>
+            {item.id === 'tax' && taxAlerts > 0 && (
+              <span
+                className="absolute right-1.5 top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none"
+                style={{ background: 'var(--color-danger)', color: 'var(--color-danger-ink)' }}
+              >
+                {taxAlerts}
+              </span>
+            )}
           </button>
         ))}
         <button
