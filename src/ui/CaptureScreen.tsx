@@ -247,43 +247,41 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       />
 
       <div className="flex flex-col gap-3">
-        <button
-          onClick={() => cameraRef.current?.click()}
-          className="panel flex min-h-36 flex-col items-center justify-center gap-3 border-dashed py-10 text-lg font-bold"
-        >
-          <Camera className="h-8 w-8" aria-hidden="true" />
-          {t('takePhoto')}
-        </button>
-        <button onClick={() => libraryRef.current?.click()} className="btn-secondary w-full">
-          <UploadCloud className="icon-lg" aria-hidden="true" />
-          {t('uploadLabel')}
-          <span className="hidden sm:inline">{t('uploadDesktopHint')}</span>
-        </button>
-        {/* iOS 的「浏览」即系统 Files：Google Drive/Dropbox 等都是其官方接入方 */}
-        <p
-          className="-mt-1 text-center text-xs sm:hidden"
-          style={{ color: 'var(--color-ink-muted)' }}
-        >
-          {t('driveHint')}
-        </p>
-
-        <div className="segmented-row">
-          {(['expense', 'income'] as const).map((k) => (
+        {files.length === 0 ? (
+          <>
             <button
-              key={k}
-              onClick={() => setKind(k)}
-              aria-pressed={kind === k}
-              className="segmented-btn"
-              style={
-                kind === k
-                  ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
-                  : { background: 'var(--color-surface-2)', color: 'var(--color-ink-muted)' }
-              }
+              onClick={() => cameraRef.current?.click()}
+              className="panel flex min-h-36 flex-col items-center justify-center gap-3 border-dashed py-10 text-lg font-bold"
             >
-              {t(k)}
+              <Camera className="h-8 w-8" aria-hidden="true" />
+              {t('takePhoto')}
             </button>
-          ))}
-        </div>
+            <button onClick={() => libraryRef.current?.click()} className="btn-secondary w-full">
+              <UploadCloud className="icon-lg" aria-hidden="true" />
+              {t('uploadLabel')}
+              <span className="hidden sm:inline">{t('uploadDesktopHint')}</span>
+            </button>
+            {/* iOS 的「浏览」即系统 Files：Google Drive/Dropbox 等都是其官方接入方 */}
+            <p
+              className="-mt-1 text-center text-xs sm:hidden"
+              style={{ color: 'var(--color-ink-muted)' }}
+            >
+              {t('driveHint')}
+            </p>
+          </>
+        ) : (
+          // 已有照片：大按钮收成一行，把表单让到首屏（多页票据继续加页）
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => cameraRef.current?.click()} className="btn-secondary">
+              <Camera className="icon" aria-hidden="true" />
+              {t('takePhoto')}
+            </button>
+            <button onClick={() => libraryRef.current?.click()} className="btn-secondary">
+              <UploadCloud className="icon" aria-hidden="true" />
+              {t('uploadShort')}
+            </button>
+          </div>
+        )}
 
         {files.length > 0 && (
           <div className="panel flex gap-2 overflow-x-auto p-2">
@@ -430,6 +428,24 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
             </button>
           </div>
         )}
+
+        <div className="segmented-row">
+          {(['expense', 'income'] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => setKind(k)}
+              aria-pressed={kind === k}
+              className="segmented-btn flex-1"
+              style={
+                kind === k
+                  ? { background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }
+                  : { background: 'var(--color-surface-2)', color: 'var(--color-ink-muted)' }
+              }
+            >
+              {t(k)}
+            </button>
+          ))}
+        </div>
 
         <div className="flex flex-wrap gap-2">
           {categories.map((c) => (

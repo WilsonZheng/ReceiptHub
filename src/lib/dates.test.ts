@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDate, formatMonth, localToday } from './dates';
+import { formatDate, formatMonth, formatMonthRange, localToday } from './dates';
 
 describe('formatDate', () => {
   it('zh uses 年月日', () => {
@@ -38,5 +38,16 @@ describe('localToday', () => {
     ).padStart(2, '0')}`;
     expect(localToday()).toBe(expected);
     expect(localToday()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe('formatMonthRange', () => {
+  it('same year shares the year', () => {
+    expect(formatMonthRange('2026-09', '2026-10', 'zh')).toBe('2026年9月–10月');
+    expect(formatMonthRange('2026-09', '2026-10', 'en')).toBe('Sep – Oct 2026');
+  });
+  it('cross-year spells out both years', () => {
+    expect(formatMonthRange('2026-12', '2027-01', 'zh')).toBe('2026年12月–2027年1月');
+    expect(formatMonthRange('2026-10', '2027-03', 'en')).toBe('Oct 2026 – Mar 2027');
   });
 });

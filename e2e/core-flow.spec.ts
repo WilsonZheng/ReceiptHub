@@ -50,7 +50,7 @@ async function addReceipt(page: Page, merchant: string, total: string, category:
   await (
     await chooserPromise
   ).setFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: PNG });
-  await page.getByPlaceholder('Merchant').fill(merchant);
+  await page.getByPlaceholder('Merchant', { exact: true }).fill(merchant);
   await page.getByPlaceholder('Total (incl. GST)').fill(total);
   await page.getByRole('button', { name: category, exact: true }).click();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
@@ -67,7 +67,7 @@ test('capture → list → fuzzy search → export csv', async ({ page }) => {
   await (
     await chooserPromise
   ).setFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: PNG });
-  await page.getByPlaceholder('Merchant').fill('Bunnings Warehouse');
+  await page.getByPlaceholder('Merchant', { exact: true }).fill('Bunnings Warehouse');
   await page.getByPlaceholder('Total (incl. GST)').fill('184.50');
   await expect(page.getByText('GST $24.07')).toBeVisible(); // 3/23 实时计算
   await page.getByRole('button', { name: 'Equipment', exact: true }).click();
@@ -94,9 +94,11 @@ test('capture → list → fuzzy search → export csv', async ({ page }) => {
 test('detail edit and soft delete', async ({ page }) => {
   await addReceipt(page, 'Z Energy', '92.30', 'Fuel');
   await page.getByText('Z Energy').click();
-  await expect(page.getByText('GST $12.04')).toBeVisible();
+  await expect(page.getByText('$12.04', { exact: true })).toBeVisible(); // 详情页 GST 行
+  // 返回键只有一个箭头图标，文案不再自带 "←"
+  await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Edit' }).click();
-  await page.getByPlaceholder('Merchant').fill('Z Energy Penrose');
+  await page.getByPlaceholder('Merchant', { exact: true }).fill('Z Energy Penrose');
   await page.getByRole('button', { name: 'Save changes' }).click();
   await expect(page.getByText('Z Energy Penrose')).toBeVisible();
 
@@ -158,14 +160,14 @@ test('income entry: own categories, + in list, gst nets off in export', async ({
   await (
     await chooserPromise
   ).setFiles({ name: 'invoice.png', mimeType: 'image/png', buffer: PNG });
-  await page.getByPlaceholder('Merchant').fill('Client Invoice');
+  await page.getByPlaceholder('Merchant', { exact: true }).fill('Client Invoice');
   await page.getByPlaceholder('Total (incl. GST)').fill('230.00'); // 收入 GST 30.00
   await page.getByRole('button', { name: 'Sales', exact: true }).click();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
 
   // 收入绿色 +，支出 −
-  await expect(page.getByText('+$230.00')).toBeVisible();
-  await expect(page.getByText('-$115.00')).toBeVisible();
+  await expect(page.getByRole('button', { name: /Client Invoice/ })).toContainText('+$230.00');
+  await expect(page.getByRole('button', { name: /Office Rent/ })).toContainText('-$115.00');
   // 收支筛选
   await page.getByRole('button', { name: 'Income', exact: true }).click();
   await expect(page.getByText('Client Invoice')).toBeVisible();
@@ -197,9 +199,9 @@ test('dashboard: range filters, net balance, tappable trend, category drill-down
   // 默认"全部"范围
   await expect(page.getByText('Top categories')).toBeVisible();
   await expect(page.getByText('Net', { exact: true })).toBeVisible(); // 结余行
-  await expect(page.getByText(/Net GST/)).toBeVisible();
-  // 切到本月
-  await page.getByRole('button', { name: 'This month', exact: true }).click();
+  await expect(page.getByText('GST offset')).toBeVisible();
+  // 切到月度
+  await page.getByRole('button', { name: 'Month', exact: true }).click();
   await expect(page.getByText('Mitre 10')).toBeVisible();
   // 点击趋势柱聚焦当月 → 选中胶囊出现，再点 ✕ 清除
   // 趋势柱的可访问名是本地化月份（含金额），en-NZ 下为 "June 2026"
@@ -207,7 +209,7 @@ test('dashboard: range filters, net balance, tappable trend, category drill-down
   const monthName = new Intl.DateTimeFormat('en-NZ', { year: 'numeric', month: 'long' }).format(
     now,
   );
-  await page.getByRole('button', { name: monthName }).first().click();
+  await page.getByRole('button', { name: `${monthName}:` }).click();
   await expect(page.getByRole('button', { name: /✕/ })).toBeVisible();
   await page.getByRole('button', { name: /✕/ }).click();
   await expect(page.getByRole('button', { name: /✕/ })).not.toBeVisible();
@@ -223,7 +225,7 @@ test('future-dated receipt still counted in all-time stats', async ({ page }) =>
   await (
     await chooserPromise
   ).setFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: PNG });
-  await page.getByPlaceholder('Merchant').fill('Future Co');
+  await page.getByPlaceholder('Merchant', { exact: true }).fill('Future Co');
   await page.getByPlaceholder('Total (incl. GST)').fill('29.99');
   await page.getByRole('button', { name: 'Other', exact: true }).click();
   await page.getByRole('button', { name: 'Date', exact: true }).click();
@@ -244,7 +246,7 @@ test('future-dated receipt still counted in all-time stats', async ({ page }) =>
 });
 
 test('capture draft survives tab switches and can be discarded', async ({ page }) => {
-  await page.getByPlaceholder('Merchant').fill('Draft Cafe');
+  await page.getByPlaceholder('Merchant', { exact: true }).fill('Draft Cafe');
   const chooserPromise = page.waitForEvent('filechooser');
   await page.getByText('Upload from library').click();
   await (
@@ -253,11 +255,11 @@ test('capture draft survives tab switches and can be discarded', async ({ page }
   // 切走再切回——草稿（含照片）完好
   await page.getByRole('button', { name: 'Receipts' }).click();
   await page.getByRole('button', { name: 'Capture', exact: true }).click();
-  await expect(page.getByPlaceholder('Merchant')).toHaveValue('Draft Cafe');
+  await expect(page.getByPlaceholder('Merchant', { exact: true })).toHaveValue('Draft Cafe');
   await expect(page.getByRole('button', { name: 'Preview photo' })).toBeVisible(); // 照片缩略图还在
   // 丢弃草稿
   await page.getByRole('button', { name: 'Discard draft' }).click();
-  await expect(page.getByPlaceholder('Merchant')).toHaveValue('');
+  await expect(page.getByPlaceholder('Merchant', { exact: true })).toHaveValue('');
   await expect(page.getByRole('button', { name: 'Preview photo' })).not.toBeVisible();
 });
 
@@ -299,7 +301,7 @@ test('Mistral AI extract: upload → structured extraction → form filled → s
 
   await page.getByRole('button', { name: 'AI fill' }).click();
   // 表单被自动填入
-  await expect(page.getByPlaceholder('Merchant')).toHaveValue('Pak n Save');
+  await expect(page.getByPlaceholder('Merchant', { exact: true })).toHaveValue('Pak n Save');
   await expect(page.getByPlaceholder('Total (incl. GST)')).toHaveValue('57.80');
   await expect(page.getByPlaceholder('Items (one per line, optional)')).toHaveValue(
     'Milk 2L ×2\nBread',
@@ -444,4 +446,71 @@ test('space toggle separates company and personal', async ({ page }) => {
   await addReceipt(page, 'Personal Shop', '50.00', 'Other');
   await expect(page.getByText('Personal Shop')).toBeVisible();
   await expect(page.getByText('Company Store')).not.toBeVisible(); // 列表严格跟随右上角空间
+});
+
+// 当前 NZ 财年（4/1–3/31）的名字，例如 "2026–27"
+function fyNameOf(d: Date, shift = 0): string {
+  const start = (d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1) + shift;
+  return `${start}–${String(start + 1).slice(2)}`;
+}
+
+test('stats: tax year stepper and GST offset follow the selected period', async ({ page }) => {
+  await addReceipt(page, 'Office Rent', '115.00', 'Other'); // 进项 GST 15.00
+  await page.getByRole('button', { name: 'Capture', exact: true }).click();
+  await page.getByRole('button', { name: 'Income', exact: true }).click();
+  await addReceipt(page, 'Client Invoice', '230.00', 'Sales'); // 销项 GST 30.00
+
+  await page.getByRole('button', { name: 'Stats' }).click();
+  await page.getByRole('button', { name: 'Tax year', exact: true }).click();
+  const now = new Date();
+  await expect(page.getByText(`Tax year ${fyNameOf(now)}`)).toBeVisible();
+  // 销项 30 被进项 15 抵消一半，应缴 15
+  await expect(page.getByText('GST you collected on income')).toBeVisible();
+  await expect(page.getByText(/Offset by expense GST \$15\.00 · 50%/)).toBeVisible();
+  await expect(page.getByText('GST to pay IRD')).toBeVisible();
+  await expect(page.getByText(/Income tax return due 7 Jul/)).toBeVisible();
+
+  // 上一财年：没有票据
+  await page.getByRole('button', { name: 'Previous period' }).click();
+  await expect(page.getByText(`Tax year ${fyNameOf(now, -1)}`)).toBeVisible();
+  await expect(page.getByText('No GST in this period')).toBeVisible();
+  // 点期间名回到当前
+  await page.getByText('Back to current').click();
+  await expect(page.getByText(`Tax year ${fyNameOf(now)}`)).toBeVisible();
+  // 下一财年也能翻到
+  await page.getByRole('button', { name: 'Next period' }).click();
+  await expect(page.getByText(`Tax year ${fyNameOf(now, 1)}`)).toBeVisible();
+
+  // GST 期：myIR 申报表各栏可照填
+  await page.getByRole('button', { name: 'GST', exact: true }).click();
+  await expect(page.getByText('myIR GST return')).toBeVisible();
+  await expect(page.getByText(/Due \d+ \w+ \d{4}/)).toBeVisible();
+  const box = (n: string) => page.getByText(new RegExp(`^Box ${n} ·`)).locator('..');
+  await expect(box('5')).toContainText('$230.00');
+  await expect(box('11')).toContainText('$115.00');
+  await expect(box('15')).toContainText('$15.00');
+
+  // 个人空间没有 GST 期
+  await page.getByRole('button', { name: 'Personal', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'GST', exact: true })).not.toBeVisible();
+});
+
+test('detail edit keeps a no-GST receipt at zero GST', async ({ page }) => {
+  const chooserPromise = page.waitForEvent('filechooser');
+  await page.getByText('Upload from library').click();
+  await (
+    await chooserPromise
+  ).setFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: PNG });
+  await page.getByPlaceholder('Merchant', { exact: true }).fill('Bank Fee');
+  await page.getByPlaceholder('Total (incl. GST)').fill('10.00');
+  await page.getByRole('button', { name: 'No GST' }).click();
+  await page.getByRole('button', { name: 'Other', exact: true }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+  await page.getByText('Bank Fee').click();
+  await page.getByRole('button', { name: 'Edit' }).click();
+  await page.getByPlaceholder('Merchant', { exact: true }).fill('ANZ Bank Fee');
+  await page.getByRole('button', { name: 'Save changes' }).click();
+  // 之前编辑会悄悄按 3/23 重算成 $1.30
+  await expect(page.getByRole('button', { name: /ANZ Bank Fee/ })).toContainText('GST $0.00');
 });

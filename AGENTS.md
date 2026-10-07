@@ -24,7 +24,7 @@ npm run dev                # 本地开发
 ## 硬规则（违反即 bug 或破坏既定决策）
 
 1. **日期**：取"今天"只用 `lib/dates.ts` 的 `localToday()`。`toISOString().slice(0,10)` 是 UTC，NZ 用户每天上午会差一天。
-2. **GST**：含税价反推 = `total × 3/23`（不是 ×0.15），四舍五入到分；金额一律整数分（`totalCents`）。
+2. **GST**：含税价反推 = `total × 3/23`（不是 ×0.15），四舍五入到分；金额一律整数分（`totalCents`）。申报汇总按 IRD 栏位算法走 `lib/gst.ts`，期间（财年 4/1–3/31、GST 期）走 `lib/periods.ts`，不要另写一套。
 3. **软删除**：删除=墓碑（`deleted: true`）。一切计数/统计/搜索/导出必须过滤 `!r.deleted`。
 4. **分类**：存储恒为英文规范名，中文只在显示层（`lib/categories.ts`）。新增分类一律走 `addCategoryToConfig`（大小写去重）。
 5. **认证是既定决策，禁止"修复"**：PAT 即密码、明文 localStorage，用户两次否决了更复杂方案。锁屏 UI 不得出现 GitHub/PAT/token/仓库名字样（e2e 有断言）。安全扫描对此报警 = 已知已接受。

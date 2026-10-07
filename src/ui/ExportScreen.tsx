@@ -2,50 +2,53 @@ import { useEffect, useMemo, useState } from 'react';
 import { listReceipts } from '../data/repo';
 import { receiptsToCsv, summarize } from '../lib/csv';
 import { formatNZD } from '../lib/money';
-import { localToday } from '../lib/dates';
+import { formatDate, localToday } from '../lib/dates';
+import { gstReturn } from '../lib/gst';
+import { periodAt } from '../lib/periods';
 import { useLocale, useT, type MsgKey } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
-import { getConfig } from '../lib/settings';
+import { getConfig, getGstFrequency } from '../lib/settings';
 import { DateField } from './components/DateField';
 import type { Receipt, Space } from '../data/types';
 
-type PresetKind = 'all' | 'thisMonth' | 'lastMonth' | 'last2Months' | 'thisYear';
+type PresetKind =
+  | 'all'
+  | 'thisMonth'
+  | 'lastMonth'
+  | 'thisGstPeriod'
+  | 'lastGstPeriod'
+  | 'thisFy'
+  | 'lastFy';
 type Selection = { kind: PresetKind } | { from: string; to: string };
 
-// 全部用本地时区组日期——NZ 上午用 UTC 会差一天
-const pad = (n: number) => String(n).padStart(2, '0');
-const ymd = (y: number, m0: number, d: number) => `${y}-${pad(m0 + 1)}-${pad(d)}`;
-// 月末必须经真实 Date 计算（ymd 是纯字符串拼接，传 day=0 会产出非法的 "-00"）
-const endOfMonth = (y: number, m0: number) => {
-  const d = new Date(y, m0 + 1, 0);
-  return ymd(d.getFullYear(), d.getMonth(), d.getDate());
-};
-
-// 预设边界用整月/整年，含未来日期的票（票面日期可能晚于今天）
+// 预设边界用整期（含未来日期的票——票面日期可能晚于今天）；期间计算全在本地日期上做
 function presetRange(kind: PresetKind, span: { from: string; to: string }) {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
   if (kind === 'all') return span;
-  if (kind === 'thisMonth') return { from: ymd(y, m, 1), to: endOfMonth(y, m) };
-  if (kind === 'lastMonth') {
-    const end = new Date(y, m, 0);
-    return {
-      from: ymd(end.getFullYear(), end.getMonth(), 1),
-      to: ymd(end.getFullYear(), end.getMonth(), end.getDate()),
-    };
-  }
-  if (kind === 'thisYear') return { from: `${y}-01-01`, to: `${y}-12-31` };
-  const prev = new Date(y, m - 1, 1);
-  return { from: ymd(prev.getFullYear(), prev.getMonth(), 1), to: endOfMonth(y, m) };
+  const today = localToday();
+  const freq = getGstFrequency();
+  const p =
+    kind === 'thisMonth'
+      ? periodAt(today, 'month', freq)
+      : kind === 'lastMonth'
+        ? periodAt(today, 'month', freq, -1)
+        : kind === 'thisGstPeriod'
+          ? periodAt(today, 'gst', freq)
+          : kind === 'lastGstPeriod'
+            ? periodAt(today, 'gst', freq, -1)
+            : kind === 'thisFy'
+              ? periodAt(today, 'fy', freq)
+              : periodAt(today, 'fy', freq, -1);
+  return { from: p.from, to: p.to };
 }
 
-const PRESETS: { kind: PresetKind; labelKey: MsgKey }[] = [
+const PRESETS: { kind: PresetKind; labelKey: MsgKey; companyOnly?: boolean }[] = [
   { kind: 'all', labelKey: 'allTime' },
   { kind: 'thisMonth', labelKey: 'thisMonth' },
   { kind: 'lastMonth', labelKey: 'lastMonth' },
-  { kind: 'last2Months', labelKey: 'last2Months' },
-  { kind: 'thisYear', labelKey: 'thisYear' },
+  { kind: 'thisGstPeriod', labelKey: 'thisGstPeriod', companyOnly: true },
+  { kind: 'lastGstPeriod', labelKey: 'lastGstPeriod', companyOnly: true },
+  { kind: 'thisFy', labelKey: 'thisFy' },
+  { kind: 'lastFy', labelKey: 'lastFy' },
 ];
 
 export function ExportScreen({ space }: { space: Space }) {
@@ -57,6 +60,12 @@ export function ExportScreen({ space }: { space: Space }) {
 
   useEffect(() => {
     void listReceipts(space).then(setAllReceipts);
+    // 个人空间没有 GST 期预设：切过去时退回"全部"
+    setSel((cur) =>
+      'kind' in cur && space === 'personal' && PRESETS.find((p) => p.kind === cur.kind)?.companyOnly
+        ? { kind: 'all' }
+        : cur,
+    );
   }, [space]);
 
   // 数据实际跨度（含未来日期），作为"全部"的边界
@@ -79,6 +88,8 @@ export function ExportScreen({ space }: { space: Space }) {
   );
 
   const s = useMemo(() => summarize(receipts), [receipts]);
+  // GST 与统计页同一算法（IRD：按含税总额 × 3/23），两处数字一致
+  const gst = useMemo(() => gstReturn(receipts), [receipts]);
 
   function download() {
     const blob = new Blob([receiptsToCsv(receipts)], { type: 'text/csv' });
@@ -92,7 +103,7 @@ export function ExportScreen({ space }: { space: Space }) {
   return (
     <div className="screen-wrap flex max-w-3xl flex-col gap-3 py-2">
       <div className="flex flex-wrap gap-1.5">
-        {PRESETS.map((p) => {
+        {PRESETS.filter((p) => !p.companyOnly || space === 'company').map((p) => {
           const active = 'kind' in sel && sel.kind === p.kind;
           return (
             <button
@@ -116,7 +127,7 @@ export function ExportScreen({ space }: { space: Space }) {
       </div>
       <div className="panel panel-pad">
         <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
-          {from} → {to} · {t(space)}
+          {formatDate(from, locale)} – {formatDate(to, locale)} · {t(space)}
         </p>
         <div className="mt-1 flex items-baseline justify-between">
           <span className="text-sm">
@@ -141,24 +152,19 @@ export function ExportScreen({ space }: { space: Space }) {
           >
             <div className="flex justify-between gap-3">
               <span className="muted">{t('gstPaid')}</span>
-              <span className="amount">{formatNZD(s.expense.gstCents)}</span>
+              <span className="amount">{formatNZD(gst.box12)}</span>
             </div>
             <div className="flex justify-between gap-3">
               <span className="muted">{t('gstCollected')}</span>
-              <span className="amount">{formatNZD(s.income.gstCents)}</span>
+              <span className="amount">{formatNZD(gst.box8)}</span>
             </div>
             <div className="flex justify-between gap-3 font-bold">
               <span>{t('netGst')} </span>
               <span
                 className="amount"
-                style={{
-                  color:
-                    s.income.gstCents - s.expense.gstCents >= 0
-                      ? 'var(--color-accent)'
-                      : 'var(--color-danger)',
-                }}
+                style={{ color: gst.box15 < 0 ? 'var(--color-accent)' : 'var(--color-ink)' }}
               >
-                {formatNZD(s.income.gstCents - s.expense.gstCents)}
+                {formatNZD(gst.box15)}
               </span>
             </div>
           </div>

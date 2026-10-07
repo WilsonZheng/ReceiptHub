@@ -59,7 +59,10 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 ## NZ 业务规则
 
 - **GST 从含税价反推是 `total × 3/23`**，不是 ×0.15。四舍五入到分。个人空间恒为 0。
-- GST 申报视角：销项（收入的 GST）− 进项（支出的 GST）= 应缴净额。仪表盘 GST 卡固定"本月+上月"（申报周期概念，不跟筛选走）。
+- GST 申报视角：销项（收入的 GST）− 进项（支出的 GST）= 应缴净额。统计页 GST 抵扣卡**跟随所选期间**；导出页同一算法。
+- **期间模型**（`lib/periods.ts`）：月度/GST 期/财年/年度统一为"长 L 个月、在某月结束"，翻页 = 平移 k×L。财年 = 4/1–3/31；GST 期由设置里的申报频率决定（`rh.gst.freq`：每月 / 每两月单数月结束〔默认〕/ 每两月双数月结束 / 每半年 3、9 月结束）。
+- **IRD 截止日**：GST 期末次月 28 日，例外 3 月结束 → 5/7、11 月结束 → 次年 1/15；所得税（IR3/IR4，无税务代理）财年后 7/7。
+- **myIR 申报栏位**（`lib/gst.ts`）：第 8/12 栏按 IRD 算法用**栏位总额 × 3/23**，不是逐张 GST 求和（会差几分）。无 GST 的收入 = 零税率（第 6 栏）；`Interest` 收入免税不计入；无 GST 的支出不进第 11 栏。不含调整项（第 9、13 栏）。
 - 金额一律整数分（`totalCents`），显示层才格式化。
 - **时区**：NZ=UTC+12，`toISOString().slice(0,10)` 每天上午给出昨天的日期——**严禁**。一律用 `lib/dates.ts` 的 `localToday()`。
 
@@ -90,6 +93,7 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 - **所有颜色/字体走 `src/theme/tokens.css` 的 CSS 变量**，组件禁止硬编码——视觉方向（当前 Midnight Ledger 深色 + iOS 分组浅色）整体可换。
 - 动效统一 iOS 缓动 `cubic-bezier(.32,.72,0,1)`；按压 `:active scale(.96)`；尊重 `prefers-reduced-motion`。
 - 次级动作一律 `.btn-secondary`（链接样文字在移动端突兀）。
+- `.field` 定义在 `@layer` 之外，Tailwind v4 里无层样式优先于工具类——给输入框加 `pl-*`/`pr-*` 无效，内边距只能内联 `style`（`.btn-*`/`.panel` 在 components 层，工具类可覆盖）。
 - i18n（`lib/i18n.ts`）：中英字典用 `Record<MsgKey, string>` 做**编译期完整性校验**——漏译直接编译失败。`html lang` 随语言切换（驱动原生控件）。
 - 导航语义：空间（公司/个人）只由右上角全局开关控制；列表内的筛选是收支维度——**同一维度只在一个地方控制**。
 - 收入显示 `+` 绿色，支出 `-` 默认色。

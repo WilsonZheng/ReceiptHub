@@ -6,6 +6,7 @@ import {
   type Space,
 } from '../data/types';
 import type { Locale } from './i18n';
+import type { GstFrequency } from './periods';
 
 const PAT_KEY = 'rh.pat';
 const CONFIG_KEY = 'rh.config';
@@ -111,4 +112,15 @@ export function setCategoryLabel(name: string, locale: Locale, label: string): A
   const next: AppConfig = { ...cfg, labels };
   setConfig(next);
   return next;
+}
+
+// GST 申报频率决定统计/导出里"GST 期"的边界；IRD 默认（3/31 结账）是每两月、单数月结束
+const GST_FREQ_KEY = 'rh.gst.freq';
+const GST_FREQS: readonly GstFrequency[] = ['monthly', 'two-odd', 'two-even', 'six'];
+export function getGstFrequency(): GstFrequency {
+  const saved = localStorage.getItem(GST_FREQ_KEY) as GstFrequency | null;
+  return saved && GST_FREQS.includes(saved) ? saved : 'two-odd';
+}
+export function setGstFrequency(f: GstFrequency): void {
+  localStorage.setItem(GST_FREQ_KEY, f);
 }
