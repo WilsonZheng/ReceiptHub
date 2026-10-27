@@ -26,6 +26,9 @@ export interface Receipt {
 
 export const kindOf = (r: Pick<Receipt, 'kind'>): Kind => r.kind ?? 'expense';
 
+/** 有没有附上原始票据（照片或 PDF）。会计代记的开支可以先没有，之后在详情页补 */
+export const hasOriginal = (r: Pick<Receipt, 'photos'>): boolean => r.photos.length > 0;
+
 // 自定义分类的显示层译名：canonical key（存于 Receipt.category/CSV/搜索，不变）→ 各语言显示名。
 // 内置分类的中文走 categories.ts 的字典，无需在此存。
 export type CategoryLabels = Record<string, { en?: string; zh?: string }>;

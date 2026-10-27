@@ -45,6 +45,7 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 
 - **同步正确性三件套**：Contents API 的 SHA 即乐观锁（冲突→重 GET→合并→重试）；记录级 LWW（`updatedAt`）；**软删除墓碑**（`deleted: true`，防多设备复活）。
 - 墓碑的代价：任何计数/统计/搜索都必须过滤 `!r.deleted`——曾因裸 `count()` 出过"删了还显示 1 张"的 bug。
+- **原始票据可以暂缺**：`photos: []` 就是「缺票据」（会计代记、暂时找不到票的开支），用 `hasOriginal()` 判断。拍照页没照片也能存；列表顶部显示缺票据的支出笔数和合计、可只看这些，每行标「缺票据」；详情页可事后补照片/PDF（`attachFiles`）；CSV 有 `Original receipt` 列（Attached/Missing）给会计核对。会计代记的开支备注以「会计代记」开头。
 - `Receipt.kind?: 'income'|'expense'`，缺省视为 expense（`kindOf()` 读取，兼容旧数据）。
 - **分类存储恒为英文规范名**，中文只在显示层翻译（`lib/categories.ts`）——换语言数据不乱、CSV 对会计稳定。用户自建分类原样显示。
 - 草稿（`lib/draft.ts`）是模块级内存单例：切 Tab 不丢（含照片 blob），刻意不持久化（blob 进不了 localStorage，半截草稿更糟）。

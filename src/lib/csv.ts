@@ -1,10 +1,11 @@
-import { kindOf, type Receipt } from '../data/types';
+import { hasOriginal, kindOf, type Receipt } from '../data/types';
 
 const esc = (s: string): string => (/[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
 const money = (cents: number): string => (cents / 100).toFixed(2);
 
 export function receiptsToCsv(receipts: Receipt[]): string {
-  const header = 'Date,Kind,Merchant,Items,Category,Net (NZD),GST (NZD),Total (NZD),Note,ReceiptID';
+  const header =
+    'Date,Kind,Merchant,Items,Category,Net (NZD),GST (NZD),Total (NZD),Note,Original receipt,ReceiptID';
   const rows = receipts.map((r) =>
     [
       r.date,
@@ -16,6 +17,8 @@ export function receiptsToCsv(receipts: Receipt[]): string {
       money(r.gstCents),
       money(r.totalCents),
       esc(r.note ?? ''),
+      // 会计核对用：哪些还没有原始票据（照片/PDF）
+      hasOriginal(r) ? 'Attached' : 'Missing',
       r.id,
     ].join(','),
   );

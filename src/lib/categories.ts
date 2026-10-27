@@ -11,6 +11,10 @@ const ZH: Record<string, string> = {
   'Meals & Entertainment': '餐饮招待',
   Travel: '差旅',
   Equipment: '设备',
+  // 会计常用的支出分类（导入会计代记开支时用到）
+  Tools: '工具',
+  'Phone & Internet': '电话网络',
+  Repairs: '维修',
   Other: '其他',
   Sales: '销售',
   Services: '服务',

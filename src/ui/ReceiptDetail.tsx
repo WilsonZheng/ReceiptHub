@@ -1,7 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ExternalLink, FileText, Pencil, Trash2 } from 'lucide-react';
+import {
+  Camera,
+  ChevronLeft,
+  ExternalLink,
+  FileText,
+  FileWarning,
+  Pencil,
+  Trash2,
+  UploadCloud,
+} from 'lucide-react';
 import { db, type PhotoRow } from '../data/db';
-import { softDeleteReceipt, updateReceipt } from '../data/repo';
+import { attachFiles, softDeleteReceipt, updateReceipt } from '../data/repo';
+import { processFile } from '../lib/image';
 import { formatNZD, gstFromTotalCents, parseNZD } from '../lib/money';
 import { addCategoryToConfig, canonicalCategory, getConfig } from '../lib/settings';
 import { AddChip } from './components/AddChip';
@@ -44,6 +54,10 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
   const [noGst, setNoGst] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [zoomUrl, setZoomUrl] = useState<string | null>(null);
+  const [attaching, setAttaching] = useState(false);
+  const [attachError, setAttachError] = useState('');
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const libraryRef = useRef<HTMLInputElement>(null);
   // 左边缘右滑返回（大屏 iPhone 单手够不到左上角的返回键）
   const swipe = useRef<{ x: number; y: number; dx: number; active: boolean } | null>(null);
   const [dragX, setDragX] = useState(0);
@@ -127,6 +141,22 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
   function cancelEdit() {
     if (receipt) resetForm(receipt);
     setEditing(false);
+  }
+
+  // 补原始票据：会计代记或暂时没票的开支，事后把照片/PDF 挂上去
+  async function handleAttach(list: File[]) {
+    if (!list.length || attaching) return;
+    setAttaching(true);
+    setAttachError('');
+    try {
+      const processed = await Promise.all(list.map(processFile));
+      setReceipt(await attachFiles(id, processed));
+      setPhotos(await db.photos.where('receiptId').equals(id).toArray());
+    } catch {
+      setAttachError(t('attachErr'));
+    } finally {
+      setAttaching(false);
+    }
   }
 
   async function handleDelete() {
@@ -311,7 +341,71 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
                 </div>
               </div>
             )}
-            {photoList}
+            <input
+              ref={cameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              hidden
+              onChange={(e) => {
+                void handleAttach([...(e.target.files ?? [])]);
+                e.target.value = '';
+              }}
+            />
+            <input
+              ref={libraryRef}
+              type="file"
+              accept="image/*,application/pdf"
+              multiple
+              hidden
+              onChange={(e) => {
+                void handleAttach([...(e.target.files ?? [])]);
+                e.target.value = '';
+              }}
+            />
+            {receipt.photos.length === 0 ? (
+              <div className="panel panel-pad flex flex-col gap-3">
+                <p className="flex gap-2 text-sm" style={{ color: 'var(--color-warning)' }}>
+                  <FileWarning className="icon mt-0.5 shrink-0" aria-hidden="true" />
+                  {t('noOriginalYet')}
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => cameraRef.current?.click()}
+                    disabled={attaching}
+                    className="btn-secondary"
+                  >
+                    <Camera className="icon" aria-hidden="true" />
+                    {t('takePhoto')}
+                  </button>
+                  <button
+                    onClick={() => libraryRef.current?.click()}
+                    disabled={attaching}
+                    className="btn-secondary"
+                  >
+                    <UploadCloud className="icon" aria-hidden="true" />
+                    {t('attachOriginal')}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {photoList}
+                <button
+                  onClick={() => libraryRef.current?.click()}
+                  disabled={attaching}
+                  className="btn-secondary"
+                >
+                  <UploadCloud className="icon" aria-hidden="true" />
+                  {t('attachMore')}
+                </button>
+              </>
+            )}
+            {attachError && (
+              <p className="text-sm" style={{ color: 'var(--color-danger)' }}>
+                {attachError}
+              </p>
+            )}
           </>
         ) : (
           <>

@@ -1,6 +1,6 @@
 import { ulid } from 'ulid';
 import { db } from './db';
-import type { Kind, PhotoKind, Receipt, Space } from './types';
+import type { Kind, PhotoKind, PhotoRef, Receipt, Space } from './types';
 
 export interface NewReceiptInput {
   space: Space;
@@ -34,21 +34,45 @@ export async function saveReceipt(input: NewReceiptInput): Promise<Receipt> {
   };
   await db.transaction('rw', [db.receipts, db.photos, db.outbox], async () => {
     await db.receipts.add(receipt);
-    for (let i = 0; i < input.files.length; i++) {
-      const f = input.files[i];
-      await db.photos.add({
-        id: receipt.photos[i].id,
-        receiptId: receipt.id,
-        kind: f.kind,
-        full: f.full,
-        thumb: f.thumb,
-        synced: 0,
-      });
-      await db.outbox.add({ kind: 'putPhoto', refId: receipt.photos[i].id, attempts: 0 });
-    }
+    await addPhotoRows(receipt.id, receipt.photos, input.files);
     await db.outbox.add({ kind: 'upsertReceipt', refId: receipt.id, attempts: 0 });
   });
   return receipt;
+}
+
+type NewFile = NewReceiptInput['files'][number];
+
+async function addPhotoRows(receiptId: string, refs: PhotoRef[], files: NewFile[]) {
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    await db.photos.add({
+      id: refs[i].id,
+      receiptId,
+      kind: f.kind,
+      full: f.full,
+      thumb: f.thumb,
+      synced: 0,
+    });
+    await db.outbox.add({ kind: 'putPhoto', refId: refs[i].id, attempts: 0 });
+  }
+}
+
+/** 给已有记录补上原始票据（照片/PDF）：照片先进 outbox，月度 json 再引用它们 */
+export async function attachFiles(id: string, files: NewFile[]): Promise<Receipt> {
+  const existing = await db.receipts.get(id);
+  if (!existing) throw new Error(`receipt ${id} not found`);
+  const refs = files.map((f) => ({ id: ulid(), kind: f.kind }));
+  const updated: Receipt = {
+    ...existing,
+    photos: [...existing.photos, ...refs],
+    updatedAt: new Date().toISOString(),
+  };
+  await db.transaction('rw', [db.receipts, db.photos, db.outbox], async () => {
+    await addPhotoRows(id, refs, files);
+    await db.receipts.put(updated);
+    await db.outbox.add({ kind: 'upsertReceipt', refId: id, attempts: 0 });
+  });
+  return updated;
 }
 
 export async function updateReceipt(

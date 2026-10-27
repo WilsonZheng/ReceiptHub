@@ -22,9 +22,13 @@ describe('receiptsToCsv', () => {
     const csv = receiptsToCsv([rec({})]);
     const [header, row] = csv.trim().split('\n');
     expect(header).toBe(
-      'Date,Kind,Merchant,Items,Category,Net (NZD),GST (NZD),Total (NZD),Note,ReceiptID',
+      'Date,Kind,Merchant,Items,Category,Net (NZD),GST (NZD),Total (NZD),Note,Original receipt,ReceiptID',
     );
-    expect(row).toBe('2026-06-07,Expense,Bunnings,,Equipment,160.43,24.07,184.50,,01J');
+    expect(row).toBe('2026-06-07,Expense,Bunnings,,Equipment,160.43,24.07,184.50,,Missing,01J');
+  });
+  it('marks records that have a photo or PDF attached', () => {
+    const csv = receiptsToCsv([rec({ photos: [{ id: 'p', kind: 'pdf' }] })]);
+    expect(csv).toContain(',Attached,01J');
   });
   it('joins items with semicolons', () => {
     const csv = receiptsToCsv([rec({ items: ['Timber 2.4m ×6', 'Screws box'] })]);

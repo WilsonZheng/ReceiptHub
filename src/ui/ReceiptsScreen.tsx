@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { liveQuery } from 'dexie';
-import { Camera, Search, X } from 'lucide-react';
+import { Camera, FileWarning, Search, X } from 'lucide-react';
 import { db } from '../data/db';
 import { buildIndex, searchReceipts } from '../data/search';
 import { summarize } from '../lib/csv';
@@ -9,8 +9,10 @@ import { useLocale, useT } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
 import { getConfig } from '../lib/settings';
 import { formatDate, formatMonth } from '../lib/dates';
-import { kindOf, type Kind, type Receipt, type Space } from '../data/types';
+import { hasOriginal, kindOf, type Kind, type Receipt, type Space } from '../data/types';
 import { ReceiptDetail } from './ReceiptDetail';
+
+const isMissing = (r: Receipt) => kindOf(r) === 'expense' && !hasOriginal(r);
 
 export function ReceiptsScreen({ space, onCapture }: { space: Space; onCapture: () => void }) {
   const [all, setAll] = useState<Receipt[]>([]);
@@ -18,6 +20,8 @@ export function ReceiptsScreen({ space, onCapture }: { space: Space; onCapture: 
   const [query, setQuery] = useState('');
   // 空间由右上角全局开关决定；列表内只筛收支维度
   const [kindFilter, setKindFilter] = useState<Kind | 'all'>('all');
+  // 只看缺原始票据的支出（会计代记、暂时没票的）——是收支之外的另一个维度，只在这里控制
+  const [missingOnly, setMissingOnly] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   // 打开详情前记住列表滚动位置，返回时恢复（长列表核对时不用从头再找）
   const rootRef = useRef<HTMLDivElement>(null);
@@ -48,10 +52,20 @@ export function ReceiptsScreen({ space, onCapture }: { space: Space; onCapture: 
   const visible = useMemo(() => {
     let scoped = all.filter((r) => r.space === space);
     if (kindFilter !== 'all') scoped = scoped.filter((r) => kindOf(r) === kindFilter);
+    if (missingOnly) scoped = scoped.filter(isMissing);
     if (!query.trim()) return scoped;
     const ids = new Set(searchReceipts(index, query));
     return scoped.filter((r) => ids.has(r.id));
-  }, [all, space, kindFilter, query, index]);
+  }, [all, space, kindFilter, missingOnly, query, index]);
+
+  const missing = useMemo(() => {
+    const rs = all.filter((r) => r.space === space && isMissing(r));
+    return { count: rs.length, totalCents: rs.reduce((s, r) => s + r.totalCents, 0) };
+  }, [all, space]);
+  // 补完最后一张后自动回到全部，不留一个空列表
+  useEffect(() => {
+    if (missing.count === 0) setMissingOnly(false);
+  }, [missing.count]);
 
   const spaceHasAny = useMemo(() => all.some((r) => r.space === space), [all, space]);
   const catLabels = useMemo(() => getConfig().labels, []);
@@ -121,6 +135,31 @@ export function ReceiptsScreen({ space, onCapture }: { space: Space; onCapture: 
             </button>
           ))}
         </div>
+        {missing.count > 0 && (
+          <div
+            className="panel flex items-center justify-between gap-3 px-4 py-2.5 text-sm"
+            style={{ color: 'var(--color-warning)' }}
+          >
+            <span className="flex min-w-0 items-center gap-2">
+              <FileWarning className="icon shrink-0" aria-hidden="true" />
+              <span>
+                <span className="amount font-semibold">{missing.count}</span>{' '}
+                {t('missingOriginals')} ·{' '}
+                <span className="amount">{formatNZD(missing.totalCents)}</span>
+              </span>
+            </span>
+            <button
+              onClick={() => {
+                setMissingOnly(!missingOnly);
+                if (!missingOnly) setKindFilter('all');
+              }}
+              aria-pressed={missingOnly}
+              className="btn-secondary min-h-9 shrink-0 px-3 py-1 text-xs"
+            >
+              {missingOnly ? t('showAllReceipts') : t('showMissingOnly')}
+            </button>
+          </div>
+        )}
         {visible.length > 0 && (
           <div className="panel grid grid-cols-2 gap-3 px-4 py-3">
             <div>
@@ -167,6 +206,14 @@ export function ReceiptsScreen({ space, onCapture }: { space: Space; onCapture: 
                   )}
                   <span className="block text-[11px]" style={{ color: 'var(--color-ink-muted)' }}>
                     {formatDate(r.date, locale)} · {categoryLabel(r.category, locale, catLabels)}
+                    {isMissing(r) && (
+                      <span
+                        className="ml-1.5 font-semibold"
+                        style={{ color: 'var(--color-warning)' }}
+                      >
+                        · {t('noOriginal')}
+                      </span>
+                    )}
                   </span>
                 </span>
                 <span className="amount shrink-0 text-right">

@@ -607,3 +607,37 @@ test.describe('touch', () => {
     await expect(page.getByPlaceholder(/Search merchant/)).toBeVisible(); // 回到列表
   });
 });
+
+test('expense without a receipt is flagged, filterable, and can get a PDF attached later', async ({
+  page,
+}) => {
+  await addReceipt(page, 'Bunnings', '50.00', 'Equipment'); // 有照片
+  // 没有照片也能存（会计代记的开支）
+  await page.getByRole('button', { name: 'Capture', exact: true }).click();
+  await page.getByPlaceholder('Merchant', { exact: true }).fill('Harvey Norman');
+  await page.getByPlaceholder('Total (incl. GST)').fill('239.00');
+  await page.getByRole('button', { name: 'Equipment', exact: true }).click();
+  await expect(page.getByText(/saved as missing a receipt/)).toBeVisible();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+
+  await expect(page.getByText(/1 expenses missing a receipt/)).toBeVisible();
+  await expect(page.getByText('· No receipt')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Show only these' }).click();
+  await expect(page.getByText('Harvey Norman')).toBeVisible();
+  await expect(page.getByText('Bunnings')).not.toBeVisible();
+
+  await page.getByText('Harvey Norman').click();
+  await expect(page.getByText(/No original receipt yet/)).toBeVisible();
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Add photo or PDF' }).click();
+  await (
+    await chooser
+  ).setFiles({ name: 'invoice.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4') });
+  await expect(page.getByRole('link', { name: /Open PDF/ })).toBeVisible();
+  await expect(page.getByText(/No original receipt yet/)).not.toBeVisible();
+
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(page.getByText(/missing a receipt/)).not.toBeVisible();
+  await expect(page.getByText('· No receipt')).toHaveCount(0);
+  await expect(page.getByText('Bunnings')).toBeVisible(); // 补完最后一张自动回到全部
+});

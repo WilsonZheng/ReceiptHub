@@ -127,7 +127,9 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
 
   const totalCents = parseNZD(total);
   const gstCents = gstOverride ?? (totalCents !== null ? gstFromTotalCents(totalCents) : 0);
-  const canSave = files.length > 0 && merchant.trim() && totalCents !== null && category && !saving;
+  // 没有照片也能存：会计代记、暂时找不到票据的开支先记账，之后在详情页补（列表里标「缺票据」）
+  const canSave = merchant.trim() && totalCents !== null && category && !saving;
+  const started = files.length > 0 || !!merchant.trim() || !!total.trim();
 
   async function handleSave() {
     if (!canSave || totalCents === null) return;
@@ -492,9 +494,14 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
           {saving ? t('saving') : t('save')}
         </button>
         {/* 禁用时点了没反应最劝退——明说差什么才能存（仅在已开始录入时提示） */}
-        {!canSave && !saving && files.length > 0 && (
+        {!canSave && !saving && started && (
           <p className="-mt-1 text-center text-xs" style={{ color: 'var(--color-ink-muted)' }}>
             {t('saveHint')}
+          </p>
+        )}
+        {canSave && files.length === 0 && (
+          <p className="-mt-1 text-center text-xs" style={{ color: 'var(--color-warning)' }}>
+            {t('noFileNotice')}
           </p>
         )}
         {isDraftDirty({

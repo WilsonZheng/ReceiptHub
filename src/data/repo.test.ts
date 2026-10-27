@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from './db';
-import { listReceipts, saveReceipt, softDeleteReceipt, updateReceipt } from './repo';
+import { attachFiles, listReceipts, saveReceipt, softDeleteReceipt, updateReceipt } from './repo';
 
 beforeEach(async () => {
   await db.receipts.clear();
@@ -28,6 +28,38 @@ describe('saveReceipt', () => {
     expect(await db.photos.count()).toBe(1);
     const ops = await db.outbox.toArray();
     expect(ops.map((o) => o.kind).sort()).toEqual(['putPhoto', 'upsertReceipt']);
+  });
+});
+
+describe('saveReceipt without files', () => {
+  it('saves a record with no original receipt and only queues the record upsert', async () => {
+    const rec = await saveReceipt({ ...input, files: [] });
+    expect(rec.photos).toEqual([]);
+    expect(await db.photos.count()).toBe(0);
+    expect((await db.outbox.toArray()).map((o) => o.kind)).toEqual(['upsertReceipt']);
+  });
+});
+
+describe('attachFiles', () => {
+  it('adds photo rows to an existing record and queues photos before the record', async () => {
+    const rec = await saveReceipt({ ...input, files: [] });
+    await db.outbox.clear();
+    await new Promise((r) => setTimeout(r, 2));
+    const updated = await attachFiles(rec.id, [{ full: new Blob(['p']), kind: 'pdf' }]);
+    expect(updated.photos).toHaveLength(1);
+    expect(updated.photos[0].kind).toBe('pdf');
+    expect(updated.updatedAt > rec.updatedAt).toBe(true);
+    const photo = await db.photos.get(updated.photos[0].id);
+    expect(photo).toMatchObject({ receiptId: rec.id, kind: 'pdf', synced: 0 });
+    const ops = await db.outbox.toArray();
+    expect(ops.map((o) => o.kind)).toEqual(['putPhoto', 'upsertReceipt']);
+  });
+
+  it('keeps photos that were already attached', async () => {
+    const rec = await saveReceipt(input);
+    const updated = await attachFiles(rec.id, [{ full: new Blob(['p2']), kind: 'jpeg' }]);
+    expect(updated.photos.map((p) => p.kind)).toEqual(['webp', 'jpeg']);
+    expect(await db.photos.where('receiptId').equals(rec.id).count()).toBe(2);
   });
 });
 
