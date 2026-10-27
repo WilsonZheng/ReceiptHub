@@ -54,6 +54,7 @@ interface ExtractOpts {
 interface RawExtraction {
   merchant?: unknown;
   date?: unknown;
+  dateText?: unknown;
   total?: unknown;
   kind?: unknown;
   category?: unknown;
@@ -66,6 +67,7 @@ const GEMINI_RESPONSE_SCHEMA = {
   properties: {
     merchant: { type: 'STRING' },
     date: { type: 'STRING', description: 'ISO date YYYY-MM-DD' },
+    dateText: { type: 'STRING', description: 'the date exactly as printed on the receipt' },
     total: { type: 'NUMBER', description: 'total amount incl. GST in dollars' },
     kind: { type: 'STRING', enum: ['expense', 'income'] },
     category: { type: 'STRING' },
@@ -83,6 +85,10 @@ const MISTRAL_RESPONSE_SCHEMA = {
       anyOf: [{ type: 'string' }, { type: 'null' }],
       description: 'ISO date YYYY-MM-DD',
     },
+    dateText: {
+      anyOf: [{ type: 'string' }, { type: 'null' }],
+      description: 'the date exactly as printed on the receipt, e.g. "05/10/2026"',
+    },
     // Strict constrained decoding has had float expansion failures for JSON `number` fields.
     // A decimal string is exact for money and normalizeExtraction already validates/parses it.
     total: {
@@ -96,7 +102,7 @@ const MISTRAL_RESPONSE_SCHEMA = {
     items: { type: 'array', items: { type: 'string' }, maxItems: 12 },
     note: { anyOf: [{ type: 'string' }, { type: 'null' }] },
   },
-  required: ['merchant', 'date', 'total', 'kind', 'category', 'items', 'note'],
+  required: ['merchant', 'date', 'dateText', 'total', 'kind', 'category', 'items', 'note'],
 };
 
 function buildPrompt(
@@ -109,7 +115,8 @@ function buildPrompt(
     'Extract structured data from this receipt or invoice (New Zealand context).',
     'Rules:',
     '- merchant: the business name, cleaned up (no slogans/addresses).',
-    '- date: the transaction/invoice date as YYYY-MM-DD.',
+    '- date: the transaction/invoice date as YYYY-MM-DD. New Zealand writes numeric dates DAY first: DD/MM/YYYY, DD/MM/YY, DD.MM.YYYY or DD-MM-YYYY. So 05/10/2026 is 5 October 2026, never May 10. Never read a numeric date in US month-first order. Two-digit years are 20YY.',
+    '- dateText: the transaction/invoice date copied exactly as printed (digits, separators and month words unchanged, without the time).',
     '- total: the final total amount including GST, in dollars.',
     "- kind: 'expense' for receipts/bills the user paid; 'income' only if this is clearly an invoice the user issued to a client. Default 'expense'.",
     `- category: strongly prefer the best match from the existing list. For expense: ${categories.expense.join(', ')}. For income: ${categories.income.join(', ')}. ONLY if none reasonably fits, output a NEW concise category name (1-3 English words, Title Case).`,
@@ -249,15 +256,38 @@ function parseJsonText(value: unknown): RawExtraction {
   }
 }
 
+const pad2 = (n: number) => String(n).padStart(2, '0');
+
+function isCalendarDate(iso: string): boolean {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(Date.UTC(y, mo - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === mo - 1 && dt.getUTCDate() === d;
+}
+
+/** 票面数字日期 → ISO。YYYY/MM/DD 年在前；其余一律按 NZ 日在前（DD/MM/YYYY、DD.MM.YY…）。带月份单词的返回 undefined，交给模型 */
+function parsePrintedDate(text: unknown): string | undefined {
+  if (typeof text !== 'string') return undefined;
+  const ymd = /(?:^|\D)(\d{4})[/.-](\d{1,2})[/.-](\d{1,2})(?!\d)/.exec(text);
+  if (ymd) return `${ymd[1]}-${pad2(Number(ymd[2]))}-${pad2(Number(ymd[3]))}`;
+  const dmy = /(?:^|\D)(\d{1,2})[/.-](\d{1,2})[/.-](\d{4}|\d{2})(?!\d)/.exec(text);
+  if (!dmy) return undefined;
+  const year = dmy[3].length === 2 ? 2000 + Number(dmy[3]) : Number(dmy[3]);
+  return `${year}-${pad2(Number(dmy[2]))}-${pad2(Number(dmy[1]))}`;
+}
+
 function normalizeExtraction(raw: RawExtraction, categories: Record<Kind, string[]>): Extraction {
   const kind: Kind = raw.kind === 'income' ? 'income' : 'expense';
   const out: Extraction = {};
   if (typeof raw.merchant === 'string' && raw.merchant.trim()) {
     out.merchant = raw.merchant.trim().slice(0, 120);
   }
-  if (typeof raw.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.date)) {
-    out.date = raw.date;
-  }
+  // 优先按 NZ 习惯（日在前）重新解析票面原文：模型偶尔会把 05/10 当成美式 5 月 10 日
+  // 原文按日在前解析出不存在的日期（如海外单据 05/13/2026）时，退回模型给的 ISO 日期
+  const printed = parsePrintedDate(raw.dateText);
+  if (printed && isCalendarDate(printed)) out.date = printed;
+  else if (typeof raw.date === 'string' && isCalendarDate(raw.date)) out.date = raw.date;
   const total =
     typeof raw.total === 'number'
       ? raw.total

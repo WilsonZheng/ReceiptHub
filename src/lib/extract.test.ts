@@ -334,6 +334,71 @@ describe('extractReceipt', () => {
     expect(r.date).toBeUndefined();
   });
 
+  it('reads the printed date day-first (NZ) even when the model swapped day and month', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      mistralReply({
+        merchant: 'Countdown',
+        date: '2026-05-10',
+        dateText: '05/10/2026',
+        total: '12.00',
+        kind: 'expense',
+        category: null,
+        items: [],
+        note: null,
+      }),
+    );
+    const r = await extractReceipt([file], MISTRAL_OPTS);
+    expect(r.date).toBe('2026-10-05');
+  });
+
+  it.each([
+    ['7/3/26', '2026-03-07'],
+    ['07.03.2026', '2026-03-07'],
+    ['07-03-2026 14:32', '2026-03-07'],
+    ['Date: 31/12/2025', '2025-12-31'],
+    ['2026/03/07', '2026-03-07'],
+  ])('parses printed date %s as %s', async (dateText, iso) => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      geminiReply({ merchant: 'X', date: '1999-01-01', dateText }),
+    );
+    const r = await extractReceipt([file], GEMINI_OPTS);
+    expect(r.date).toBe(iso);
+  });
+
+  it('falls back to the model date when the printed date uses a month name', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      geminiReply({ merchant: 'X', date: '2026-10-05', dateText: '5 Oct 2026' }),
+    );
+    const r = await extractReceipt([file], GEMINI_OPTS);
+    expect(r.date).toBe('2026-10-05');
+  });
+
+  it('falls back to the model date when the printed date is not valid day-first', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      geminiReply({ merchant: 'X', date: '2026-05-13', dateText: '05/13/2026' }),
+    );
+    const r = await extractReceipt([file], GEMINI_OPTS);
+    expect(r.date).toBe('2026-05-13');
+  });
+
+  it('drops dates that do not exist on the calendar', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      geminiReply({ merchant: 'X', date: '2026-13-05', dateText: '13/13/2026' }),
+    );
+    const r = await extractReceipt([file], GEMINI_OPTS);
+    expect(r.date).toBeUndefined();
+  });
+
+  it('tells the model NZ dates are day-first and asks for the printed date text', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(mistralReply({ merchant: 'X' }));
+    await extractReceipt([file], MISTRAL_OPTS);
+    const body = JSON.parse(String(spy.mock.calls[0][1]!.body));
+    expect(body.messages[0].content[0].text).toMatch(/DD\/MM\/YYYY/);
+    const schema = body.response_format.json_schema.schema;
+    expect(schema.properties.dateText).toBeDefined();
+    expect(schema.required).toContain('dateText');
+  });
+
   it('drops absurd category proposals', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       geminiReply({ merchant: 'X', category: 'x'.repeat(80) }),
