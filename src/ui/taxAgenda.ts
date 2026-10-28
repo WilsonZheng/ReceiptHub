@@ -64,6 +64,8 @@ export function taskSubtitle(task: TaxTask, locale: Locale, t: T): string | null
 export function whenText(due: string, today: string, t: T): string {
   const d = daysBetween(today, due);
   if (d === 0) return t('dueToday');
+  if (d === 1) return t('dayLeft'); // 英文单复数：1 day / 2 days
+  if (d === -1) return t('dayOverdue');
   return d > 0 ? fill(t('daysLeft'), { n: d }) : fill(t('daysOverdue'), { n: -d });
 }
 

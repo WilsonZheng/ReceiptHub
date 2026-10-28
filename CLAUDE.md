@@ -44,6 +44,7 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 ```
 
 - **同步正确性三件套**：Contents API 的 SHA 即乐观锁（冲突→重 GET→合并→重试）；记录级 LWW（`updatedAt`）；**软删除墓碑**（`deleted: true`，防多设备复活）。
+- **改日期跨月**：`updateReceipt` 额外排一个 `dropFromMonth` outbox 操作，在新月份写好后从旧月份文件删掉这条（只删比本地旧的那份）。以前没有这一步，旧月份会留下旧副本——设备上 LWW 不会算重，但直接读数据仓库算账会算重。
 - 墓碑的代价：任何计数/统计/搜索都必须过滤 `!r.deleted`——曾因裸 `count()` 出过"删了还显示 1 张"的 bug。
 - **原始票据可以暂缺**：`photos: []` 就是「缺票据」（会计代记、暂时找不到票的开支），用 `hasOriginal()` 判断。拍照页没照片也能存；列表顶部显示缺票据的支出笔数和合计、可只看这些，每行标「缺票据」；详情页可事后补照片/PDF（`attachFiles`）；CSV 有 `Original receipt` 列（Attached/Missing）给会计核对。会计代记的开支备注以「会计代记」开头。
 - `Receipt.kind?: 'income'|'expense'`，缺省视为 expense（`kindOf()` 读取，兼容旧数据）。
@@ -75,7 +76,7 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 3. 安全区：`viewport-fit=cover` 与 `env(safe-area-inset-*)` 必须配套；顶部 padding 挂在 `.app-shell` 上。
 4. **原生 `<input type="date">` 的语言跟随 iOS 系统**，页面 lang 管不了——所以自绘了 `DateField`（底部抽屉日历，`lib/calendar.ts` 纯函数网格）。
 5. PWA 更新：`registerType: 'prompt'`（autoUpdate 会在用户填表时突然 reload），逻辑在 `ui/useAppUpdate.ts`：**没有未保存内容**（拍照草稿 `isDraftDirty`、详情编辑中 `lib/busy.ts`）时，冷启动 5 秒内发现新版直接淡出套用、切到后台时套用；否则显示横幅，点一下淡出刷新（有草稿先 confirm）。当前 Tab/空间存 sessionStorage（`rh.ui`），刷新后回到原页面；刷新后顶部提示"已更新 · 版本"（`rh.version` 比对）。版本号 = 构建日期 + 提交短哈希（`vite.config.ts` 的 `define`，CI 用 `GITHUB_SHA`），设置页「关于」可手动检查更新。e2e 里 `serviceWorkers: 'block'`，真实更新流程要另起 preview 手测（先 build A、打开、再 build B、点检查更新）。
-9. **不闪白**：`index.html` 首帧内联脚本按 `rh.theme` 设 `data-theme` 和 `<html>` 底色（`lib/theme.ts` 切换时同步）；冷启动画面 `apple-touch-startup-image` 只有像素尺寸与设备完全一致才生效，目前覆盖 440×956@3（6.9 英寸 Pro Max）和 402×874@3（6.3 英寸 Pro），深浅各一张，`node scripts/gen-icons.mjs` 生成。
+9. **不闪白**：`index.html` 首帧内联脚本按 `rh.theme` 设 `data-theme` 和 `<html>` 底色（`lib/theme.ts` 切换时同步）；冷启动画面 `apple-touch-startup-image` 只有像素尺寸与设备完全一致才生效，目前覆盖 440×956@3（6.9 英寸 Pro Max，16/17/18 Pro Max 都是这个尺寸，18 Pro Max 官方 2868×1320）和 402×874@3（6.3 英寸 Pro），深浅各一张，`node scripts/gen-icons.mjs` 生成。
 10. 详情页支持**左边缘右滑返回**（起手 ≤28px、拖过 90px）：大屏 iPhone 单手够不到左上角返回键。拖动距离存在 ref 里，不能读 state（快速甩动时事件比渲染快）。
 6. iOS 没有系统级下拉刷新（App.tsx 自实现，touch 事件 + 阻尼）；橡皮筋用 `overscroll-behavior` 锁。
 7. Google Drive 上传无需任何代码：iOS 文件选择器的「浏览」= 系统 Files App，Drive/Dropbox 是其官方接入方。不要去接 Google Picker API。

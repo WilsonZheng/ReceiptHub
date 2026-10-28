@@ -12,8 +12,9 @@ export interface PhotoRow {
 
 export interface OutboxRow {
   seq?: number;
-  kind: 'upsertReceipt' | 'putPhoto';
+  kind: 'upsertReceipt' | 'putPhoto' | 'dropFromMonth';
   refId: string; // receiptId 或 photoId
+  path?: string; // dropFromMonth：改日期跨月后，旧月份文件的路径
   attempts: number;
   lastError?: string;
 }

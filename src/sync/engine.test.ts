@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../data/db';
-import { saveReceipt } from '../data/repo';
+import { saveReceipt, updateReceipt } from '../data/repo';
 import { ConflictError, type GithubClient } from './github';
 import { flushOutbox, pullSpace } from './engine';
 
@@ -73,6 +73,40 @@ describe('flushOutbox', () => {
     await flushOutbox(client);
     expect(JSON.parse(remote.get('company/2026-06.json')!.text)).toHaveLength(1);
     expect(await db.outbox.count()).toBe(0);
+  });
+
+  it('moving a receipt to another month removes it from the old month file', async () => {
+    const remote = new Map<string, { text: string; sha: number }>();
+    const client = fakeClient(remote);
+    const rec = await saveReceipt(input);
+    await flushOutbox(client);
+    await new Promise((r) => setTimeout(r, 2));
+    await updateReceipt(rec.id, { date: '2026-10-04' });
+    await flushOutbox(client);
+    expect(await db.outbox.count()).toBe(0);
+    expect(JSON.parse(remote.get('company/2026-06.json')!.text)).toEqual([]);
+    const moved = JSON.parse(remote.get('company/2026-10.json')!.text);
+    expect(moved.map((r: { id: string; date: string }) => [r.id, r.date])).toEqual([
+      [rec.id, '2026-10-04'],
+    ]);
+  });
+
+  it('editing within the same month does not queue a removal', async () => {
+    const rec = await saveReceipt(input);
+    await db.outbox.clear();
+    await updateReceipt(rec.id, { date: '2026-06-20' });
+    expect((await db.outbox.toArray()).map((o) => o.kind)).toEqual(['upsertReceipt']);
+  });
+
+  it('keeps a copy in the old month if it is newer than the local record', async () => {
+    const rec = await saveReceipt(input);
+    await new Promise((r) => setTimeout(r, 2));
+    await updateReceipt(rec.id, { date: '2026-10-04' });
+    // 另一台设备随后又把它改回了 6 月：那份更新，不能删
+    const newer = { ...rec, merchant: 'Moved back', updatedAt: '2999-01-01T00:00:00.000Z' };
+    const remote = new Map([['company/2026-06.json', { text: JSON.stringify([newer]), sha: 1 }]]);
+    await flushOutbox(fakeClient(remote));
+    expect(JSON.parse(remote.get('company/2026-06.json')!.text)).toEqual([newer]);
   });
 
   it('keeps op in outbox with attempts++ when push fails', async () => {

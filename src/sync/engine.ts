@@ -28,12 +28,36 @@ async function upsertToMonth(client: GithubClient, receipt: Receipt): Promise<vo
   throw new Error(`sha conflict persisted after ${MAX_ATTEMPTS} attempts: ${path}`);
 }
 
+/** 改日期跨月后，从旧月份文件删掉这条记录——只删比本地旧的那份（别的设备改回来的更新版本要留着） */
+async function dropFromMonth(client: GithubClient, path: string, receipt: Receipt): Promise<void> {
+  if (monthPath(receipt.space, receipt.date) === path) return; // 又改回了这个月
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const remote = await client.getFile(path);
+    if (!remote) return;
+    const recs = JSON.parse(remote.text) as Receipt[];
+    const kept = recs.filter((r) => r.id !== receipt.id || r.updatedAt > receipt.updatedAt);
+    if (kept.length === recs.length) return;
+    try {
+      const newSha = await client.putFile(path, JSON.stringify(kept, null, 1), {
+        sha: remote.sha,
+        message: `sync: move ${receipt.merchant} out of ${path}`,
+      });
+      await db.kv.put({ key: shaKey(path), value: newSha });
+      return;
+    } catch (e) {
+      if (!(e instanceof ConflictError)) throw e;
+    }
+  }
+  throw new Error(`sha conflict persisted after ${MAX_ATTEMPTS} attempts: ${path}`);
+}
+
 export async function flushOutbox(client: GithubClient): Promise<void> {
-  // 照片优先（month json 引用它们）
+  // 照片优先（month json 引用它们）；从旧月份删放最后，新月份先写好
   const ops = await db.outbox.orderBy('seq').toArray();
   const photosFirst = [
     ...ops.filter((o) => o.kind === 'putPhoto'),
     ...ops.filter((o) => o.kind === 'upsertReceipt'),
+    ...ops.filter((o) => o.kind === 'dropFromMonth'),
   ];
   for (const op of photosFirst) {
     try {
@@ -50,6 +74,9 @@ export async function flushOutbox(client: GithubClient): Promise<void> {
           }
           await db.photos.update(op.refId, { synced: 1 });
         }
+      } else if (op.kind === 'dropFromMonth') {
+        const receipt = await db.receipts.get(op.refId);
+        if (receipt && op.path) await dropFromMonth(client, op.path, receipt);
       } else {
         const receipt = await db.receipts.get(op.refId);
         if (receipt) await upsertToMonth(client, receipt);

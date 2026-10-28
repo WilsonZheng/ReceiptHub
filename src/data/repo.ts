@@ -1,5 +1,6 @@
 import { ulid } from 'ulid';
 import { db } from './db';
+import { monthPath } from '../sync/merge';
 import type { Kind, PhotoKind, PhotoRef, Receipt, Space } from './types';
 
 export interface NewReceiptInput {
@@ -82,9 +83,13 @@ export async function updateReceipt(
   const existing = await db.receipts.get(id);
   if (!existing) throw new Error(`receipt ${id} not found`);
   const updated: Receipt = { ...existing, ...patch, updatedAt: new Date().toISOString() };
+  const oldPath = monthPath(existing.space, existing.date);
   await db.transaction('rw', [db.receipts, db.outbox], async () => {
     await db.receipts.put(updated);
     await db.outbox.add({ kind: 'upsertReceipt', refId: id, attempts: 0 });
+    // 改日期跨了月：旧月份文件里那份要删掉，不然会留下一份旧副本
+    if (monthPath(updated.space, updated.date) !== oldPath)
+      await db.outbox.add({ kind: 'dropFromMonth', refId: id, path: oldPath, attempts: 0 });
   });
   return updated;
 }

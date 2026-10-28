@@ -363,7 +363,8 @@ test('custom localized date picker: sheet opens, pick a day, value updates', asy
   // 抽屉里有月份导航和今天按钮
   await expect(page.getByRole('button', { name: 'Today', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '15', exact: true }).first().click();
-  await expect(page.getByRole('button', { name: 'Today' })).not.toBeVisible(); // 选中即关闭
+  // exact：截止当天顶部横幅写着 "Due today"，子串匹配会命中横幅
+  await expect(page.getByRole('button', { name: 'Today', exact: true })).not.toBeVisible(); // 选中即关闭
   await expect(page.getByRole('button', { name: 'Date', exact: true })).toContainText('15');
 });
 
