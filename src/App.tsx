@@ -184,10 +184,14 @@ export default function App() {
       {authBanner && (
         <div
           className="drop-in px-4 py-2 text-center text-xs font-semibold"
-          style={{ background: 'var(--color-danger)', color: '#fff' }}
+          style={{ background: 'var(--color-danger)', color: 'var(--color-danger-ink)' }}
         >
           {t('authBanner')}{' '}
-          <button className="underline" onClick={() => setAuthBanner(false)}>
+          <button
+            className="ml-2 rounded-full px-3 py-1 text-xs font-bold"
+            style={{ background: 'rgba(0,0,0,.2)' }}
+            onClick={() => setAuthBanner(false)}
+          >
             {t('dismiss')}
           </button>
         </div>

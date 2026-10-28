@@ -11,7 +11,10 @@ import {
 } from 'lucide-react';
 import { db, type PhotoRow } from '../data/db';
 import { attachFiles, softDeleteReceipt, updateReceipt } from '../data/repo';
-import { processFile } from '../lib/image';
+import { processFile, MAX_PDF_BYTES } from '../lib/image';
+import { downloadPhoto } from '../sync/engine';
+import { GithubClient } from '../sync/github';
+import { DATA_REPO, getPat } from '../lib/settings';
 import { formatNZD, gstFromTotalCents, parseNZD } from '../lib/money';
 import { addCategoryToConfig, canonicalCategory, getConfig } from '../lib/settings';
 import { AddChip } from './components/AddChip';
@@ -19,8 +22,8 @@ import { useLocale, useT } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
 import { formatDate } from '../lib/dates';
 import { DateField } from './components/DateField';
-import { kindOf, type Kind, type Receipt } from '../data/types';
-import { holdBusy } from '../lib/busy';
+import { kindOf, type Kind, type PhotoRef, type Receipt } from '../data/types';
+import { holdBusy, holdBusyWhilePicking } from '../lib/busy';
 
 function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -56,6 +59,11 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
   const [zoomUrl, setZoomUrl] = useState<string | null>(null);
   const [attaching, setAttaching] = useState(false);
   const [attachError, setAttachError] = useState('');
+  const [saveError, setSaveError] = useState('');
+  // 别的设备拍的照片：本机还没有，打开详情时从云端下载
+  const [photosLoaded, setPhotosLoaded] = useState(false);
+  const [cloud, setCloud] = useState<Record<string, 'loading' | 'error'>>({});
+  const pickRelease = useRef<(() => void) | null>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const libraryRef = useRef<HTMLInputElement>(null);
   // 左边缘右滑返回（大屏 iPhone 单手够不到左上角的返回键）
@@ -82,8 +90,55 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
       setReceipt(r);
       resetForm(r);
     });
-    void db.photos.where('receiptId').equals(id).toArray().then(setPhotos);
+    void db.photos
+      .where('receiptId')
+      .equals(id)
+      .toArray()
+      .then((rows) => {
+        setPhotos(rows);
+        setPhotosLoaded(true);
+      });
   }, [id]);
+
+  const missingRefs: PhotoRef[] =
+    receipt && photosLoaded
+      ? receipt.photos.filter((ref) => !photos.some((p) => p.id === ref.id))
+      : [];
+  const missingKey = missingRefs.map((r) => r.id).join(',');
+
+  async function fetchFromCloud(refs: PhotoRef[]) {
+    const pat = getPat();
+    if (!pat || !refs.length) return;
+    setCloud((c) => ({ ...c, ...Object.fromEntries(refs.map((r) => [r.id, 'loading' as const])) }));
+    const client = new GithubClient(pat, DATA_REPO);
+    const got: PhotoRow[] = [];
+    const failed: string[] = [];
+    for (const ref of refs) {
+      try {
+        const row = await downloadPhoto(client, id, ref);
+        if (row) got.push(row);
+        else failed.push(ref.id);
+      } catch {
+        failed.push(ref.id);
+      }
+    }
+    setCloud((c) => {
+      const next = { ...c };
+      for (const r of refs) delete next[r.id];
+      for (const f of failed) next[f] = 'error';
+      return next;
+    });
+    if (got.length)
+      setPhotos((cur) => [...cur, ...got.filter((g) => !cur.some((p) => p.id === g.id))]);
+  }
+
+  useEffect(() => {
+    if (missingKey) void fetchFromCloud(missingRefs);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在缺的照片集合变化时下载一次
+  }, [missingKey]);
+
+  // 离开详情页时释放还没回来的选择器占用
+  useEffect(() => () => pickRelease.current?.(), []);
 
   // 编辑中有未保存的输入：期间不自动套用新版本
   useEffect(() => (editing ? holdBusy() : undefined), [editing]);
@@ -113,6 +168,10 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
   if (!receipt) return null;
 
   const catLabels = getConfig().labels;
+  // 当前分类不在列表里（别处加的、被删掉的）也要显示出来，否则编辑时看不出选的是哪个
+  const kindList = getConfig().categories[receipt.space][kind];
+  const categoryChoices =
+    category && !kindList.includes(category) ? [...kindList, category] : kindList;
   const isCompany = receipt.space === 'company';
   const totalCents = parseNZD(total);
   const gstCents = !isCompany || noGst || totalCents === null ? 0 : gstFromTotalCents(totalCents);
@@ -125,17 +184,22 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
       .split('\n')
       .map((s) => s.trim())
       .filter(Boolean);
-    await updateReceipt(id, {
-      merchant: merchant.trim(),
-      kind,
-      totalCents,
-      gstCents,
-      date,
-      category,
-      note: note || undefined,
-      items: items.length ? items : undefined,
-    });
-    onClose();
+    setSaveError('');
+    try {
+      await updateReceipt(id, {
+        merchant: merchant.trim(),
+        kind,
+        totalCents,
+        gstCents,
+        date,
+        category,
+        note: note || undefined,
+        items: items.length ? items : undefined,
+      });
+      onClose();
+    } catch {
+      setSaveError(t('saveErr')); // 写库失败要说出来，不能点了没反应
+    }
   }
 
   function cancelEdit() {
@@ -149,19 +213,35 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
     setAttaching(true);
     setAttachError('');
     try {
+      if (list.some((f) => f.type === 'application/pdf' && f.size > MAX_PDF_BYTES))
+        throw new Error('pdf-too-big');
       const processed = await Promise.all(list.map(processFile));
       setReceipt(await attachFiles(id, processed));
       setPhotos(await db.photos.where('receiptId').equals(id).toArray());
-    } catch {
-      setAttachError(t('attachErr'));
+    } catch (e) {
+      // 超大 PDF 重试也没用，单独说明；其它情况才提示再试一次
+      setAttachError(
+        e instanceof Error && e.message === 'pdf-too-big' ? t('pdfTooBig') : t('attachErr'),
+      );
     } finally {
       setAttaching(false);
     }
   }
 
+  function openPicker(ref: React.RefObject<HTMLInputElement | null>) {
+    pickRelease.current?.();
+    pickRelease.current = holdBusyWhilePicking();
+    ref.current?.click();
+  }
+
   async function handleDelete() {
-    await softDeleteReceipt(id);
-    onClose();
+    setSaveError('');
+    try {
+      await softDeleteReceipt(id);
+      onClose();
+    } catch {
+      setSaveError(t('deleteErr'));
+    }
   }
 
   const photoList = photos.map((p, i) =>
@@ -253,7 +333,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
           <>
             {/* 数据在前、照片在后：长票据照片不再把金额挤到屏幕外 */}
             <div className="panel panel-pad">
-              <p className="text-lg font-bold">{receipt.merchant}</p>
+              <p className="text-lg font-bold [overflow-wrap:anywhere]">{receipt.merchant}</p>
               <p
                 className="amount text-3xl font-bold"
                 style={{
@@ -348,6 +428,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
               capture="environment"
               hidden
               onChange={(e) => {
+                pickRelease.current?.();
                 void handleAttach([...(e.target.files ?? [])]);
                 e.target.value = '';
               }}
@@ -359,47 +440,75 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
               multiple
               hidden
               onChange={(e) => {
+                pickRelease.current?.();
                 void handleAttach([...(e.target.files ?? [])]);
                 e.target.value = '';
               }}
             />
             {receipt.photos.length === 0 ? (
               <div className="panel panel-pad flex flex-col gap-3">
-                <p className="flex gap-2 text-sm" style={{ color: 'var(--color-warning)' }}>
-                  <FileWarning className="icon mt-0.5 shrink-0" aria-hidden="true" />
-                  {t('noOriginalYet')}
-                </p>
+                {/* 只有支出才算"缺票据"（与列表一致）；收入没附件只给补充入口，不报警 */}
+                {kindOf(receipt) === 'expense' && (
+                  <p className="flex gap-2 text-sm" style={{ color: 'var(--color-warning)' }}>
+                    <FileWarning className="icon mt-0.5 shrink-0" aria-hidden="true" />
+                    {t('noOriginalYet')}
+                  </p>
+                )}
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => cameraRef.current?.click()}
+                    onClick={() => openPicker(cameraRef)}
                     disabled={attaching}
-                    className="btn-secondary"
+                    className="btn-secondary disabled:opacity-50"
                   >
                     <Camera className="icon" aria-hidden="true" />
-                    {t('takePhoto')}
+                    {t('attachTakePhoto')}
                   </button>
                   <button
-                    onClick={() => libraryRef.current?.click()}
+                    onClick={() => openPicker(libraryRef)}
                     disabled={attaching}
-                    className="btn-secondary"
+                    className="btn-secondary disabled:opacity-50"
                   >
                     <UploadCloud className="icon" aria-hidden="true" />
-                    {t('attachOriginal')}
+                    {attaching ? t('attaching') : t('attachOriginal')}
                   </button>
                 </div>
               </div>
             ) : (
               <>
                 {photoList}
+                {missingRefs.map((ref) => (
+                  <div
+                    key={ref.id}
+                    className="panel flex items-center justify-between gap-3 px-4 py-3 text-sm"
+                    style={{ color: 'var(--color-ink-muted)' }}
+                  >
+                    <span>
+                      {cloud[ref.id] === 'error' ? t('photoCloudErr') : t('photoLoading')}
+                    </span>
+                    {cloud[ref.id] === 'error' && (
+                      <button
+                        onClick={() => void fetchFromCloud([ref])}
+                        className="btn-secondary min-h-9 shrink-0 px-3 py-1 text-xs"
+                      >
+                        {t('retry')}
+                      </button>
+                    )}
+                  </div>
+                ))}
                 <button
-                  onClick={() => libraryRef.current?.click()}
+                  onClick={() => openPicker(libraryRef)}
                   disabled={attaching}
-                  className="btn-secondary"
+                  className="btn-secondary disabled:opacity-50"
                 >
                   <UploadCloud className="icon" aria-hidden="true" />
-                  {t('attachMore')}
+                  {attaching ? t('attaching') : t('attachMore')}
                 </button>
               </>
+            )}
+            {saveError && (
+              <p className="text-sm" style={{ color: 'var(--color-danger)' }}>
+                {saveError}
+              </p>
             )}
             {attachError && (
               <p className="text-sm" style={{ color: 'var(--color-danger)' }}>
@@ -469,7 +578,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
             </Labeled>
             <Labeled label={t('category')}>
               <div className="flex flex-wrap gap-2">
-                {getConfig().categories[receipt.space][kind].map((c) => (
+                {categoryChoices.map((c) => (
                   <button
                     key={c}
                     onClick={() => setCategory(c)}
@@ -522,6 +631,11 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
                 {t('saveChanges')}
               </button>
             </div>
+            {saveError && (
+              <p className="text-sm" style={{ color: 'var(--color-danger)' }}>
+                {saveError}
+              </p>
+            )}
           </>
         )}
 

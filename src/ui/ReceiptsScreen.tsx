@@ -23,6 +23,11 @@ export function ReceiptsScreen({ space, onCapture }: { space: Space; onCapture: 
   // 只看缺原始票据的支出（会计代记、暂时没票的）——是收支之外的另一个维度，只在这里控制
   const [missingOnly, setMissingOnly] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  // 切换公司/个人：正在看的票据属于另一个空间，关掉并从顶部开始
+  useEffect(() => {
+    setOpenId(null);
+    savedScroll.current = 0;
+  }, [space]);
   // 打开详情前记住列表滚动位置，返回时恢复（长列表核对时不用从头再找）
   const rootRef = useRef<HTMLDivElement>(null);
   const savedScroll = useRef(0);
@@ -144,7 +149,7 @@ export function ReceiptsScreen({ space, onCapture }: { space: Space; onCapture: 
               <FileWarning className="icon shrink-0" aria-hidden="true" />
               <span>
                 <span className="amount font-semibold">{missing.count}</span>{' '}
-                {t('missingOriginals')} ·{' '}
+                {t(missing.count === 1 ? 'missingOriginal' : 'missingOriginals')} ·{' '}
                 <span className="amount">{formatNZD(missing.totalCents)}</span>
               </span>
             </span>
@@ -195,7 +200,9 @@ export function ReceiptsScreen({ space, onCapture }: { space: Space; onCapture: 
                 }}
               >
                 <span className="min-w-0 flex-1 pr-2">
-                  <span className="block text-sm font-semibold">{r.merchant}</span>
+                  <span className="block text-sm font-semibold [overflow-wrap:anywhere]">
+                    {r.merchant}
+                  </span>
                   {r.items && r.items.length > 0 && (
                     <span
                       className="block truncate text-[11px]"

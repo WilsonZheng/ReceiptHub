@@ -84,6 +84,8 @@ export function fyName(endYm: string): string {
 }
 
 /** 所得税申报截止日（IR3/IR4，3/31 结账、无税务代理）：财年结束后的 7 月 7 日 */
-export function incomeTaxDueDate(fyEndYm: string): string {
-  return `${fyEndYm.slice(0, 4)}-07-07`;
+/** 所得税申报截止：无税务代理 7/7；有代理可延到次年 3/31（与税务页 taxCalendar 同一规则） */
+export function incomeTaxDueDate(fyEndYm: string, hasAgent = false): string {
+  const y = Number(fyEndYm.slice(0, 4));
+  return hasAgent ? `${y + 1}-03-31` : `${y}-07-07`;
 }

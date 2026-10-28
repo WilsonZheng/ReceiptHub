@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { liveQuery } from 'dexie';
 import { db } from '../data/db';
-import { getPat, DATA_REPO } from '../lib/settings';
+import { adoptUsedCategories, getPat, DATA_REPO } from '../lib/settings';
 import { AuthError, GithubClient } from './github';
 import { flushOutbox, pullAll } from './engine';
 
@@ -31,8 +31,18 @@ export async function syncNow(): Promise<void> {
   setStatus('syncing');
   try {
     const client = new GithubClient(pat, DATA_REPO);
-    await flushOutbox(client);
+    // 推送失败也照样拉取：LWW 合并会保留本地较新的版本，别的设备的改动不该被一条坏操作挡住
+    let pushError: unknown = null;
+    try {
+      await flushOutbox(client);
+    } catch (e) {
+      if (e instanceof AuthError) throw e;
+      pushError = e;
+    }
     await pullAll(client);
+    // 别的设备加的/导入的分类补进本机列表，编辑时才选得到
+    adoptUsedCategories(await db.receipts.toArray());
+    if (pushError) throw pushError;
     setStatus('idle');
   } catch (e) {
     setStatus('error');

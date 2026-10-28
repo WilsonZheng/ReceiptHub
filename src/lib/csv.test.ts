@@ -69,3 +69,17 @@ describe('summarize (per-kind totals)', () => {
     expect(s.income.count).toBe(0);
   });
 });
+
+describe('receiptsToCsv spreadsheet safety', () => {
+  it('neutralises text that a spreadsheet would run as a formula', () => {
+    const csv = receiptsToCsv([
+      rec({ merchant: '=HYPERLINK("http://x","y")', note: '-1+1', items: ['@SUM(A1)'] }),
+    ]);
+    expect(csv).toContain(`"'=HYPERLINK(""http://x"",""y"")"`);
+    expect(csv).toContain(",'-1+1,");
+    expect(csv).toContain(",'@SUM(A1),");
+  });
+  it('quotes a bare carriage return', () => {
+    expect(receiptsToCsv([rec({ note: 'a\rb' })])).toContain('"a\rb"');
+  });
+});

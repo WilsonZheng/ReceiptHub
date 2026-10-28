@@ -96,6 +96,12 @@ export async function updateReceipt(
 
 export async function softDeleteReceipt(id: string): Promise<void> {
   await updateReceipt(id, { deleted: true });
+  // 本地照片和还没传的照片一起清掉：删了的票据不该再占空间、再上传
+  const photoIds = (await db.photos.where('receiptId').equals(id).primaryKeys()) as string[];
+  await db.transaction('rw', [db.photos, db.outbox], async () => {
+    await db.photos.bulkDelete(photoIds);
+    await db.outbox.filter((o) => o.kind === 'putPhoto' && photoIds.includes(o.refId)).delete();
+  });
 }
 
 export async function listReceipts(space: Space | 'all'): Promise<Receipt[]> {

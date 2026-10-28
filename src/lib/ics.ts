@@ -7,7 +7,28 @@ export interface CalEvent {
 }
 
 const esc = (s: string) =>
-  s.replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+  s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+
+// RFC 5545：每行最多 75 字节，超出的折到下一行（CRLF + 空格）；按字符切，不切断中文的 UTF-8 字节
+const enc = new TextEncoder();
+function fold(line: string): string {
+  const out: string[] = [];
+  let cur = '';
+  let bytes = 0;
+  for (const ch of line) {
+    const n = enc.encode(ch).length;
+    const limit = out.length ? 74 : 75; // 续行开头的空格占 1 字节
+    if (bytes + n > limit) {
+      out.push(cur);
+      cur = '';
+      bytes = 0;
+    }
+    cur += ch;
+    bytes += n;
+  }
+  out.push(cur);
+  return out.join('\r\n ');
+}
 const compact = (iso: string) => iso.replace(/-/g, '');
 
 function nextDay(iso: string): string {
@@ -42,5 +63,5 @@ export function buildIcs(events: CalEvent[], stampIso: string): string {
     lines.push('END:VEVENT');
   }
   lines.push('END:VCALENDAR');
-  return lines.join('\r\n') + '\r\n';
+  return lines.map(fold).join('\r\n') + '\r\n';
 }

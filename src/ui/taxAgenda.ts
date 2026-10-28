@@ -1,7 +1,7 @@
 import { localToday, formatMonth } from '../lib/dates';
 import { fyName } from '../lib/periods';
-import { taxTasks, urgencyOf, daysBetween, type TaxTask } from '../lib/taxCalendar';
-import { getDoneTasks, getTaxProfile, useTaxStateVersion } from '../lib/taxState';
+import { agendaBackDays, taxTasks, urgencyOf, daysBetween, type TaxTask } from '../lib/taxCalendar';
+import { getDoneTasks, getTaxProfile, getTaxSince, useTaxStateVersion } from '../lib/taxState';
 import { formatMonthRange } from '../lib/dates';
 import type { Locale, MsgKey } from '../lib/i18n';
 
@@ -11,7 +11,7 @@ export function useTaxAgenda() {
   const today = localToday();
   const profile = getTaxProfile();
   const done = getDoneTasks();
-  const all = taxTasks(profile, today);
+  const all = taxTasks(profile, today, { backDays: agendaBackDays(getTaxSince(today), today) });
   const pending = all.filter((t) => !done.has(t.id));
   const urgent = pending.filter((t) => urgencyOf(t.due, today) !== 'later');
   return { today, profile, all, done, pending, urgent };

@@ -9,3 +9,20 @@ export function holdBusy(): () => void {
   };
 }
 export const isBusy = () => holds > 0;
+
+/**
+ * 打开相机/文件选择器期间也算"忙"：iOS 弹出选择器时页面会变成 hidden，
+ * 这时候套用新版本会刷新页面，刚选的照片就丢了。选完（onChange）或回到页面后释放；取消选择时靠 focus 兜底
+ */
+export function holdBusyWhilePicking(): () => void {
+  const release = holdBusy();
+  const onFocus = () => setTimeout(done, 1500);
+  const timer = setTimeout(done, 180_000);
+  function done() {
+    window.removeEventListener('focus', onFocus);
+    clearTimeout(timer);
+    release();
+  }
+  window.addEventListener('focus', onFocus);
+  return done;
+}

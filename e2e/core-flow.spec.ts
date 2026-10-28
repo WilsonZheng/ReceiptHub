@@ -80,7 +80,7 @@ test('capture → list → fuzzy search → export csv', async ({ page }) => {
   await page.getByPlaceholder(/Search merchant/).fill('bunings');
   await expect(page.getByText('Bunnings Warehouse')).toBeVisible();
   await page.getByPlaceholder(/Search merchant/).fill('zzzznothing');
-  await expect(page.getByText('No receipts matching search')).toBeVisible();
+  await expect(page.getByText('No matching receipts')).toBeVisible();
   await page.getByPlaceholder(/Search merchant/).clear();
 
   // 导出
@@ -210,9 +210,9 @@ test('dashboard: range filters, net balance, tappable trend, category drill-down
     now,
   );
   await page.getByRole('button', { name: `${monthName}:` }).click();
-  await expect(page.getByRole('button', { name: /✕/ })).toBeVisible();
-  await page.getByRole('button', { name: /✕/ }).click();
-  await expect(page.getByRole('button', { name: /✕/ })).not.toBeVisible();
+  await expect(page.getByRole('button', { name: /Clear month filter/ })).toBeVisible();
+  await page.getByRole('button', { name: /Clear month filter/ }).click();
+  await expect(page.getByRole('button', { name: /Clear month filter/ })).not.toBeVisible();
   // 分类下钻：点 Equipment 行 → 展开商家构成
   await page.getByRole('button', { name: /Equipment/ }).click();
   await expect(page.getByText('— Mitre 10')).toBeVisible();
@@ -228,7 +228,7 @@ test('future-dated receipt still counted in all-time stats', async ({ page }) =>
   await page.getByPlaceholder('Merchant', { exact: true }).fill('Future Co');
   await page.getByPlaceholder('Total (incl. GST)').fill('29.99');
   await page.getByRole('button', { name: 'Other', exact: true }).click();
-  await page.getByRole('button', { name: 'Date', exact: true }).click();
+  await page.getByRole('button', { name: /^Date: / }).click();
   await page.getByRole('button', { name: 'next month' }).click();
   await page.getByRole('button', { name: '15', exact: true }).first().click();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
@@ -359,13 +359,13 @@ test('AI provider settings keep separate Mistral/Gemini keys and legacy Gemini u
 });
 
 test('custom localized date picker: sheet opens, pick a day, value updates', async ({ page }) => {
-  await page.getByRole('button', { name: 'Date', exact: true }).click();
+  await page.getByRole('button', { name: /^Date: / }).click();
   // 抽屉里有月份导航和今天按钮
   await expect(page.getByRole('button', { name: 'Today', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '15', exact: true }).first().click();
   // exact：截止当天顶部横幅写着 "Due today"，子串匹配会命中横幅
   await expect(page.getByRole('button', { name: 'Today', exact: true })).not.toBeVisible(); // 选中即关闭
-  await expect(page.getByRole('button', { name: 'Date', exact: true })).toContainText('15');
+  await expect(page.getByRole('button', { name: /^Date: / })).toContainText('15');
 });
 
 test('capture thumbnail opens fullscreen preview', async ({ page }) => {
@@ -413,29 +413,42 @@ test('inline category add: tap + chip, type, enter — usable in capture', async
 
 test('custom category gets a per-language display name', async ({ page }) => {
   await openMore(page, 'Settings');
-  // 英文界面下新增自定义分类（canonical key = "Insurance"）
+  // 英文界面下新增一个字典里没有的自定义分类
   await page.getByRole('button', { name: '＋ Add' }).first().click(); // 公司·支出组
-  await page.getByPlaceholder('New category').fill('Insurance');
+  await page.getByPlaceholder('New category').fill('Dog Grooming');
   await page.getByPlaceholder('New category').press('Enter');
-  await expect(page.getByText('Insurance')).toBeVisible();
+  await expect(page.getByText('Dog Grooming')).toBeVisible();
 
-  // 切到中文：自定义分类此时仍按 key 显示 "Insurance"
+  // 切到中文：自定义分类此时仍按 key 显示，点"设置显示名"填中文
   await page.getByRole('button', { name: '中文' }).click();
-  // 点该分类的"设置显示名"，填中文显示名
   await page.getByRole('button', { name: '设置显示名' }).first().click();
-  await page.getByPlaceholder('中文显示名').fill('保险');
+  await page.getByPlaceholder('中文显示名').fill('狗狗美容');
   await page.getByPlaceholder('中文显示名').press('Enter');
-  await expect(page.getByText('保险')).toBeVisible();
+  await expect(page.getByText('狗狗美容')).toBeVisible();
 
   // 显示层译名应贯穿全站：拍照页分类按钮显示中文
   await page.getByRole('button', { name: '拍照' }).click();
-  await expect(page.getByRole('button', { name: '保险', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '狗狗美容', exact: true })).toBeVisible();
 
-  // 切回英文：canonical key 不变，仍显示 "Insurance"（数据/CSV 稳定）
+  // 切回英文：canonical key 不变（数据/CSV 稳定）
   await page.getByRole('button', { name: '更多' }).click();
   await page.getByRole('button', { name: '设置' }).click();
   await page.getByRole('button', { name: 'English' }).click();
-  await expect(page.getByText('Insurance')).toBeVisible();
+  await expect(page.getByText('Dog Grooming')).toBeVisible();
+  await expect(page.getByText('狗狗美容')).toHaveCount(0);
+});
+
+test('known categories are bilingual: typing 保险 stores Insurance', async ({ page }) => {
+  await openMore(page, 'Settings');
+  await page.getByRole('button', { name: '中文' }).click();
+  await page.getByRole('button', { name: '＋ 添加' }).first().click();
+  await page.getByPlaceholder('新分类').fill('保险');
+  await page.getByPlaceholder('新分类').press('Enter');
+  await expect(page.getByText('保险', { exact: true })).toBeVisible();
+  // 已知分类不需要手动补译名
+  await expect(page.getByRole('button', { name: '设置显示名' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'English' }).click();
+  await expect(page.getByText('Insurance', { exact: true })).toBeVisible();
   await expect(page.getByText('保险')).toHaveCount(0);
 });
 
@@ -621,8 +634,8 @@ test('expense without a receipt is flagged, filterable, and can get a PDF attach
   await expect(page.getByText(/saved as missing a receipt/)).toBeVisible();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
 
-  await expect(page.getByText(/1 expenses missing a receipt/)).toBeVisible();
-  await expect(page.getByText('· No receipt')).toHaveCount(1);
+  await expect(page.getByText(/1 expense missing a receipt/)).toBeVisible();
+  await expect(page.getByText('· No original')).toHaveCount(1);
   await page.getByRole('button', { name: 'Show only these' }).click();
   await expect(page.getByText('Harvey Norman')).toBeVisible();
   await expect(page.getByText('Bunnings')).not.toBeVisible();
@@ -639,6 +652,6 @@ test('expense without a receipt is flagged, filterable, and can get a PDF attach
 
   await page.getByRole('button', { name: 'Back', exact: true }).click();
   await expect(page.getByText(/missing a receipt/)).not.toBeVisible();
-  await expect(page.getByText('· No receipt')).toHaveCount(0);
+  await expect(page.getByText('· No original')).toHaveCount(0);
   await expect(page.getByText('Bunnings')).toBeVisible(); // 补完最后一张自动回到全部
 });

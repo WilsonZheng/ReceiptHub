@@ -1,10 +1,26 @@
 import { db } from '../data/db';
-import type { Receipt, Space } from '../data/types';
-import { ConflictError, toBase64, type GithubClient } from './github';
+import type { PhotoRef, Receipt, Space } from '../data/types';
+import type { PhotoRow } from '../data/db';
+import { AuthError, ConflictError, toBase64, type GithubClient } from './github';
 import { mergeReceipts, monthPath } from './merge';
 
 const MAX_ATTEMPTS = 5;
 const shaKey = (path: string) => `sha:${path}`;
+
+/**
+ * 把某个月份文件的内容并进本地（LWW），再记下它的 SHA——两步必须一起做：
+ * 只记 SHA 不并内容，下次拉取会以为"没变"而跳过，别的设备写进这个月的记录就永远下不来。
+ * 读-合并-写在同一个事务里，避免和用户同时保存的修改互相覆盖。
+ */
+async function absorbMonth(path: string, sha: string, remoteRecs: Receipt[]): Promise<void> {
+  await db.transaction('rw', [db.receipts, db.kv], async () => {
+    const locals = (await db.receipts.bulkGet(remoteRecs.map((r) => r.id))).filter(
+      (r): r is Receipt => !!r,
+    );
+    await db.receipts.bulkPut(mergeReceipts(remoteRecs, locals));
+    await db.kv.put({ key: shaKey(path), value: sha });
+  });
+}
 
 async function upsertToMonth(client: GithubClient, receipt: Receipt): Promise<void> {
   const path = monthPath(receipt.space, receipt.date);
@@ -18,7 +34,7 @@ async function upsertToMonth(client: GithubClient, receipt: Receipt): Promise<vo
         sha: remote?.sha,
         message: `sync: ${receipt.merchant} ${receipt.date}`,
       });
-      await db.kv.put({ key: shaKey(path), value: newSha });
+      await absorbMonth(path, newSha, merged);
       return;
     } catch (e) {
       if (!(e instanceof ConflictError)) throw e;
@@ -42,7 +58,7 @@ async function dropFromMonth(client: GithubClient, path: string, receipt: Receip
         sha: remote.sha,
         message: `sync: move ${receipt.merchant} out of ${path}`,
       });
-      await db.kv.put({ key: shaKey(path), value: newSha });
+      await absorbMonth(path, newSha, kept);
       return;
     } catch (e) {
       if (!(e instanceof ConflictError)) throw e;
@@ -59,11 +75,15 @@ export async function flushOutbox(client: GithubClient): Promise<void> {
     ...ops.filter((o) => o.kind === 'upsertReceipt'),
     ...ops.filter((o) => o.kind === 'dropFromMonth'),
   ];
+  // 一条失败不拖住别的：记下错误继续；只有照片没传上去的那张票据，先不写它的月份记录
+  let firstError: unknown = null;
+  const photoFailed = new Set<string>();
   for (const op of photosFirst) {
     try {
       if (op.kind === 'putPhoto') {
         const photo = await db.photos.get(op.refId);
-        if (photo) {
+        const owner = photo && (await db.receipts.get(photo.receiptId));
+        if (photo && owner && !owner.deleted) {
           const ext = photo.kind === 'pdf' ? 'pdf' : photo.kind;
           const path = `photos/${photo.receiptId}/${photo.id}.${ext}`;
           const existingSha = await client.getSha(path);
@@ -78,6 +98,7 @@ export async function flushOutbox(client: GithubClient): Promise<void> {
         const receipt = await db.receipts.get(op.refId);
         if (receipt && op.path) await dropFromMonth(client, op.path, receipt);
       } else {
+        if (photoFailed.has(op.refId)) continue;
         const receipt = await db.receipts.get(op.refId);
         if (receipt) await upsertToMonth(client, receipt);
       }
@@ -87,9 +108,15 @@ export async function flushOutbox(client: GithubClient): Promise<void> {
         attempts: op.attempts + 1,
         lastError: e instanceof Error ? e.message : String(e),
       });
-      throw e; // 调用方决定退避；剩余 ops 下轮再处理
+      if (e instanceof AuthError) throw e; // 凭证失效：后面的也必然失败
+      if (op.kind === 'putPhoto') {
+        const photo = await db.photos.get(op.refId);
+        if (photo) photoFailed.add(photo.receiptId);
+      }
+      firstError ??= e;
     }
   }
+  if (firstError) throw firstError; // 剩下的下轮再试；调用方显示同步出错
 }
 
 export async function pullSpace(client: GithubClient, space: Space): Promise<void> {
@@ -99,16 +126,32 @@ export async function pullSpace(client: GithubClient, space: Space): Promise<voi
     if (cached === entry.sha) continue;
     const remote = await client.getFile(entry.path);
     if (!remote) continue;
-    const remoteRecs = JSON.parse(remote.text) as Receipt[];
-    const ids = remoteRecs.map((r) => r.id);
-    const locals = (await db.receipts.bulkGet(ids)).filter((r): r is Receipt => !!r);
-    const merged = mergeReceipts(remoteRecs, locals);
-    await db.receipts.bulkPut(merged);
-    await db.kv.put({ key: shaKey(entry.path), value: remote.sha });
+    await absorbMonth(entry.path, remote.sha, JSON.parse(remote.text) as Receipt[]);
   }
 }
 
 export async function pullAll(client: GithubClient): Promise<void> {
   await pullSpace(client, 'personal');
   await pullSpace(client, 'company');
+}
+
+const MIME = { webp: 'image/webp', jpeg: 'image/jpeg', pdf: 'application/pdf' } as const;
+
+/** 别的设备拍的照片：本机第一次打开详情时从云端下载，存下来以后就不用再下 */
+export async function downloadPhoto(
+  client: GithubClient,
+  receiptId: string,
+  ref: PhotoRef,
+): Promise<PhotoRow | null> {
+  const blob = await client.getBlob(`photos/${receiptId}/${ref.id}.${ref.kind}`);
+  if (!blob) return null;
+  const row: PhotoRow = {
+    id: ref.id,
+    receiptId,
+    kind: ref.kind,
+    full: new Blob([blob], { type: MIME[ref.kind] }),
+    synced: 1,
+  };
+  await db.photos.put(row);
+  return row;
 }

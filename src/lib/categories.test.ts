@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categoryLabel, isBuiltinCategory } from './categories';
+import { canonicalCategoryName, categoryLabel, isKnownCategory } from './categories';
 
 describe('categoryLabel', () => {
   it('translates built-in categories for zh', () => {
@@ -32,10 +32,52 @@ describe('categoryLabel', () => {
     expect(categoryLabel('Fuel', 'zh', undefined)).toBe('油费');
   });
 
-  it('isBuiltinCategory distinguishes built-ins from custom names', () => {
-    expect(isBuiltinCategory('Fuel')).toBe(true);
-    expect(isBuiltinCategory('Salary')).toBe(true);
-    expect(isBuiltinCategory('保险')).toBe(false);
-    expect(isBuiltinCategory('Insurance')).toBe(false);
+  it('isKnownCategory covers built-ins and common accounting categories, not arbitrary names', () => {
+    expect(isKnownCategory('Fuel')).toBe(true);
+    expect(isKnownCategory('Salary')).toBe(true);
+    expect(isKnownCategory('Insurance')).toBe(true);
+    expect(isKnownCategory('保险')).toBe(true); // 中文别名也算已知
+    expect(isKnownCategory('Dog Treats')).toBe(false);
+  });
+});
+
+describe('common categories are bilingual', () => {
+  it.each([
+    ['Insurance', '保险'],
+    ['Tools', '工具'],
+    ['Repairs', '维修'],
+    ['Phone & Internet', '电话网络'],
+    ['Vehicle Maintenance', '车辆维护'],
+    ['Appliances', '电器'],
+    ['Home Goods', '家居用品'],
+    ['Rent', '房租'],
+    ['Bank Fees', '银行手续费'],
+    ['Accounting Fees', '会计费'],
+  ])('%s shows as %s in zh', (en, zh) => {
+    expect(categoryLabel(en, 'zh')).toBe(zh);
+    expect(categoryLabel(en, 'en')).toBe(en);
+  });
+});
+
+describe('canonicalCategoryName', () => {
+  it('maps Chinese and case variants of known categories to the English key', () => {
+    expect(canonicalCategoryName('保险')).toBe('Insurance');
+    expect(canonicalCategoryName('车维护')).toBe('Vehicle Maintenance');
+    expect(canonicalCategoryName('汽车维护')).toBe('Vehicle Maintenance');
+    expect(canonicalCategoryName(' 电器 ')).toBe('Appliances');
+    expect(canonicalCategoryName('fuel')).toBe('Fuel');
+    expect(canonicalCategoryName('油费')).toBe('Fuel');
+  });
+  it('leaves unknown names as typed (trimmed)', () => {
+    expect(canonicalCategoryName('  宠物用品 ')).toBe('宠物用品');
+    expect(canonicalCategoryName('Dog Treats')).toBe('Dog Treats');
+  });
+  it('labels legacy Chinese-keyed records in both languages', () => {
+    expect(categoryLabel('车维护', 'en')).toBe('Vehicle Maintenance');
+    expect(categoryLabel('车维护', 'zh')).toBe('车辆维护');
+    expect(categoryLabel('工具', 'en')).toBe('Tools');
+  });
+  it('a user override still wins over the dictionary', () => {
+    expect(categoryLabel('Insurance', 'zh', { Insurance: { zh: '车险' } })).toBe('车险');
   });
 });

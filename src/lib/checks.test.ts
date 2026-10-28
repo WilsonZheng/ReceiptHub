@@ -69,7 +69,49 @@ describe('buildIcs', () => {
     expect(ics).toContain('DTSTART;VALUE=DATE:20261028\r\n');
     expect(ics).toContain('DTEND;VALUE=DATE:20261029\r\n');
     expect(ics).toContain('SUMMARY:GST\\, Apr–Sep\r\n');
-    expect(ics).toContain('DESCRIPTION:a\;b\r\n');
+    expect(ics).toContain('DESCRIPTION:a\\;b\r\n'); // RFC 5545：分号要转义成 \;
     expect(ics.match(/BEGIN:VALARM/g)).toHaveLength(2);
+  });
+});
+
+describe('ics escaping and folding', () => {
+  it('escapes ASCII semicolons', () => {
+    const ics = buildIcs(
+      [{ uid: 'u', date: '2026-10-28', title: 'A;B', description: 'd' }],
+      '2026-10-28',
+    );
+    expect(ics).toContain('SUMMARY:A\\;B');
+  });
+  it('folds lines longer than 75 bytes without splitting a Chinese character', () => {
+    const description = '按 App 里的票据：应缴 $324.86（这期还没结束）'.repeat(4);
+    const ics = buildIcs([{ uid: 'u', date: '2026-10-28', title: 't', description }], '2026-10-28');
+    for (const line of ics.split('\r\n'))
+      expect(new TextEncoder().encode(line).length).toBeLessThanOrEqual(75);
+    const unfolded = ics.replace(/\r\n /g, '');
+    expect(unfolded).toContain(`DESCRIPTION:${description.replace(/,/g, '\\,')}`);
+  });
+});
+
+describe('duplicate check', () => {
+  it('a refund (income) and the expense it refunds are not duplicates', () => {
+    const base = {
+      space: 'company' as const,
+      date: '2026-10-01',
+      merchant: 'Bunnings',
+      totalCents: 5000,
+      gstCents: 652,
+      category: 'Other',
+      photos: [],
+      createdAt: '',
+      updatedAt: '',
+    };
+    const checks = receiptChecks(
+      [
+        { ...base, id: 'A', kind: 'expense' },
+        { ...base, id: 'B', kind: 'income' },
+      ] as Receipt[],
+      '2026-04-01',
+    );
+    expect(checks.filter((c) => c.kind === 'duplicate')).toEqual([]);
   });
 });

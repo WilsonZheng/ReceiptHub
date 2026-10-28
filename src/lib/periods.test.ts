@@ -99,5 +99,6 @@ describe('tax year helpers', () => {
   it('names the year and the income tax return due date', () => {
     expect(fyName('2027-03')).toBe('2026–27');
     expect(incomeTaxDueDate('2027-03')).toBe('2027-07-07');
+    expect(incomeTaxDueDate('2027-03', true)).toBe('2028-03-31'); // 有税务代理：次年 3/31
   });
 });

@@ -4,6 +4,7 @@ import { Camera, ChevronLeft, ChevronRight } from 'lucide-react';
 import { db } from '../data/db';
 import { summarize } from '../lib/csv';
 import { formatNZD } from '../lib/money';
+import { getTaxProfile } from '../lib/taxState';
 import { aggregateByMonth, firstMonth, monthsBetween, pctChange, topBy } from '../lib/stats';
 import { gstReturn, type GstReturn } from '../lib/gst';
 import {
@@ -492,7 +493,10 @@ export function DashboardScreen({ space, onCapture }: { space: Space; onCapture:
         </p>
         {mode === 'fy' && period && (
           <p className="mt-1 text-[11px] muted">
-            {t('incomeTaxDue').replace('{d}', formatDate(incomeTaxDueDate(period.endYm), locale))}
+            {t('incomeTaxDue').replace(
+              '{d}',
+              formatDate(incomeTaxDueDate(period.endYm, getTaxProfile().hasAgent), locale),
+            )}
           </p>
         )}
       </Card>
@@ -507,6 +511,7 @@ export function DashboardScreen({ space, onCapture }: { space: Space; onCapture:
           selMonth && (
             <button
               onClick={() => setSelMonth(null)}
+              aria-label={`${t('clearMonthFilter')}: ${formatMonth(selMonth, locale)}`}
               className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
               style={{ background: 'var(--color-accent)', color: 'var(--color-accent-ink)' }}
             >
@@ -563,7 +568,12 @@ export function DashboardScreen({ space, onCapture }: { space: Space; onCapture:
           <p className="mt-2 text-xs" style={{ color: 'var(--color-ink-muted)' }}>
             {t('expense')} -{formatNZD(focusSummary.expense.totalCents)} · {t('income')} +
             {formatNZD(focusSummary.income.totalCents)} ·{' '}
-            {focusSummary.expense.count + focusSummary.income.count} {t('receiptsUnit')}
+            {focusSummary.expense.count + focusSummary.income.count}{' '}
+            {t(
+              focusSummary.expense.count + focusSummary.income.count === 1
+                ? 'receiptUnit'
+                : 'receiptsUnit',
+            )}
           </p>
         )}
       </Card>
@@ -635,8 +645,11 @@ export function DashboardScreen({ space, onCapture }: { space: Space; onCapture:
                                 className="flex justify-between"
                                 style={{ color: 'var(--color-ink-muted)' }}
                               >
-                                <span>— {m}</span>
-                                <span style={{ fontFamily: 'var(--font-numeric)' }}>
+                                <span className="min-w-0 [overflow-wrap:anywhere]">— {m}</span>
+                                <span
+                                  className="shrink-0 pl-2"
+                                  style={{ fontFamily: 'var(--font-numeric)' }}
+                                >
                                   {formatNZD(mc)}
                                 </span>
                               </li>
@@ -659,10 +672,12 @@ export function DashboardScreen({ space, onCapture }: { space: Space; onCapture:
           <ul className="flex flex-col gap-1 text-xs">
             {topMerch.map(([m, cents], i) => (
               <li key={m} className="flex justify-between">
-                <span>
+                <span className="min-w-0 [overflow-wrap:anywhere]">
                   <span style={{ color: 'var(--color-ink-muted)' }}>{i + 1}.</span> {m}
                 </span>
-                <span style={{ fontFamily: 'var(--font-numeric)' }}>-{formatNZD(cents)}</span>
+                <span className="shrink-0 pl-2" style={{ fontFamily: 'var(--font-numeric)' }}>
+                  -{formatNZD(cents)}
+                </span>
               </li>
             ))}
           </ul>

@@ -55,6 +55,14 @@ export class GithubClient {
     return { text: fromBase64(json.content), sha: json.sha };
   }
 
+  /** 二进制文件原样下载（照片/PDF）：raw 媒体类型直接返回文件内容，不走 base64 */
+  async getBlob(path: string): Promise<Blob | null> {
+    const res = await this.req(path, { headers: { Accept: 'application/vnd.github.raw' } });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`github GET ${path}: ${res.status}`);
+    return res.blob();
+  }
+
   async getSha(path: string): Promise<string | null> {
     const res = await this.req(path);
     if (res.status === 404) return null;

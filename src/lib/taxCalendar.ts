@@ -1,7 +1,7 @@
 // 公司（3/31 结账、已注册 GST）每年要跟 IRD / Companies Office 打交道的截止日。
 // 纯函数：输入"你的情况"和今天，输出一段时间窗口内的待办，按截止日排序。
 // 日期规则来源：IRD 官网（GST、所得税、预缴税、PAYE）与 Companies Office（年度申报）。
-import { gstDueDate, periodAt, type GstFrequency } from './periods';
+import { gstDueDate, incomeTaxDueDate, periodAt, type GstFrequency } from './periods';
 
 export type Provisional = 'no' | 'standard' | 'unsure';
 
@@ -72,7 +72,7 @@ export function taxTasks(
       id: `incomeTax:${y}`,
       kind: 'incomeTax',
       fyEndYm,
-      due: p.hasAgent ? `${y + 1}-03-31` : `${y}-07-07`,
+      due: incomeTaxDueDate(`${y}-03`, p.hasAgent),
     });
     tasks.push({
       id: `terminalTax:${y}`,
@@ -129,6 +129,14 @@ export function taxTasks(
   return tasks
     .filter((t) => t.due >= lo && t.due <= hi)
     .sort((a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : a.id < b.id ? -1 : 1));
+}
+
+/**
+ * 待办往回看多少天：从开始用 App 那天（再往前 60 天）算起——没标完成的逾期事项一直显示，
+ * 不会过了 60 天就悄悄消失；新用户也不会一上来看到一整年"逾期"。最多 800 天。
+ */
+export function agendaBackDays(sinceIso: string, todayIso: string): number {
+  return Math.min(800, Math.max(60, daysBetween(sinceIso, todayIso) + 60));
 }
 
 /** 紧急程度：逾期 / 14 天内 / 之后 */

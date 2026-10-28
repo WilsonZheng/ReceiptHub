@@ -16,6 +16,8 @@ export function SyncDot() {
       className="flex shrink-0 items-center gap-1 text-xs font-semibold"
       style={{ color: 'var(--color-ink-muted)' }}
       title={t(`status_${status}`)}
+      role="status"
+      aria-label={`${t(`status_${status}`)}${pending > 0 ? ` · ${pending} ${t('pendingUnit')}` : ''}`}
     >
       <span
         className="inline-block h-2.5 w-2.5 rounded-full"

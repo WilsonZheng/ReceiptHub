@@ -7,7 +7,15 @@ import { addMonths, monthGrid, weekdayLabels } from '../../lib/calendar';
  * 本地化日期选择器：原生 <input type="date"> 的语言跟随 iOS 系统、无法被网页控制，
  * 所以自绘一个 iOS 底部抽屉式日历，语言完全跟随 app 设置。
  */
-export function DateField({ value, onChange }: { value: string; onChange: (iso: string) => void }) {
+export function DateField({
+  value,
+  onChange,
+  label,
+}: {
+  value: string;
+  onChange: (iso: string) => void;
+  label?: string; // 读屏用：同一页有两个日期框（导出的起止）时区分开
+}) {
   const [open, setOpen] = useState(false);
   const [viewYm, setViewYm] = useState(value.slice(0, 7));
   const locale = useLocale();
@@ -36,7 +44,13 @@ export function DateField({ value, onChange }: { value: string; onChange: (iso: 
 
   return (
     <>
-      <button type="button" onClick={show} aria-label={t('date')} className="field text-left">
+      <button
+        type="button"
+        onClick={show}
+        // 名字里带上当前值：VoiceOver 只读 aria-label，不带值就只听到"日期"
+        aria-label={`${label ?? t('date')}: ${formatDate(value, locale)}`}
+        className="field text-left"
+      >
         {formatDate(value, locale)}
       </button>
 
@@ -56,7 +70,7 @@ export function DateField({ value, onChange }: { value: string; onChange: (iso: 
               <button
                 type="button"
                 onClick={() => setViewYm(addMonths(viewYm, -1))}
-                aria-label="prev month"
+                aria-label={t('prevMonth')}
                 className="rounded-full px-3 py-1 text-lg"
                 style={{ background: 'var(--color-surface-2)' }}
               >
@@ -66,7 +80,7 @@ export function DateField({ value, onChange }: { value: string; onChange: (iso: 
               <button
                 type="button"
                 onClick={() => setViewYm(addMonths(viewYm, 1))}
-                aria-label="next month"
+                aria-label={t('nextMonth')}
                 className="rounded-full px-3 py-1 text-lg"
                 style={{ background: 'var(--color-surface-2)' }}
               >

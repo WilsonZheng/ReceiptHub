@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Camera, Crop as CropIcon, Sparkles, UploadCloud } from 'lucide-react';
 import { processFile, type ProcessedFile } from '../lib/image';
 import { clearDraft, emptyDraft, getDraft, isDraftDirty, setDraft } from '../lib/draft';
+import { holdBusyWhilePicking } from '../lib/busy';
+import { MAX_PDF_BYTES } from '../lib/image';
 import { localToday } from '../lib/dates';
 import { formatNZD, gstFromTotalCents, parseNZD } from '../lib/money';
 import { extractReceipt, ExtractError } from '../lib/extract';
@@ -120,10 +122,45 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       setFiles((cur) => [...cur, ...processed]);
       if (opts.openCrop && firstImage >= 0) setCropIndex(startIndex + firstImage);
       setError('');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'file processing failed');
+    } catch {
+      // 原始报错是英文（"PDF over 20MB"），按语言给用户能看懂的说法
+      setError(
+        list.some((f) => f.type === 'application/pdf' && f.size > MAX_PDF_BYTES)
+          ? t('pdfTooBig')
+          : t('attachErr'),
+      );
     }
   }
+
+  // 缩略图/预览的 object URL：文件变了才重建，旧的释放（以前每次按键都新建一批，内存一直涨）
+  const [thumbUrls, setThumbUrls] = useState<string[]>([]);
+  useEffect(() => {
+    const created = files.map((f) =>
+      f.kind === 'pdf' ? '' : URL.createObjectURL(f.thumb ?? f.full),
+    );
+    setThumbUrls(created);
+    return () => created.forEach((u) => u && URL.revokeObjectURL(u));
+  }, [files]);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!preview) return setPreviewUrl(null);
+    const u = URL.createObjectURL(preview.full);
+    setPreviewUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [preview]);
+  function openPdf(blob: Blob) {
+    const u = URL.createObjectURL(blob);
+    window.open(u);
+    setTimeout(() => URL.revokeObjectURL(u), 60_000);
+  }
+  // 打开相机/相册期间不自动套用新版本（iOS 弹出选择器时页面会变 hidden）
+  const pickRelease = useRef<(() => void) | null>(null);
+  function openPicker(ref: React.RefObject<HTMLInputElement | null>) {
+    pickRelease.current?.();
+    pickRelease.current = holdBusyWhilePicking();
+    ref.current?.click();
+  }
+  useEffect(() => () => pickRelease.current?.(), []);
 
   const totalCents = parseNZD(total);
   const gstCents = gstOverride ?? (totalCents !== null ? gstFromTotalCents(totalCents) : 0);
@@ -232,6 +269,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         capture="environment"
         hidden
         onChange={(e) => {
+          pickRelease.current?.();
           void addFiles([...(e.target.files ?? [])], { openCrop: true });
           e.target.value = '';
         }}
@@ -243,6 +281,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         multiple
         hidden
         onChange={(e) => {
+          pickRelease.current?.();
           void addFiles([...(e.target.files ?? [])]);
           e.target.value = '';
         }}
@@ -252,13 +291,13 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         {files.length === 0 ? (
           <>
             <button
-              onClick={() => cameraRef.current?.click()}
+              onClick={() => openPicker(cameraRef)}
               className="panel flex min-h-36 flex-col items-center justify-center gap-3 border-dashed py-10 text-lg font-bold"
             >
               <Camera className="h-8 w-8" aria-hidden="true" />
               {t('takePhoto')}
             </button>
-            <button onClick={() => libraryRef.current?.click()} className="btn-secondary w-full">
+            <button onClick={() => openPicker(libraryRef)} className="btn-secondary w-full">
               <UploadCloud className="icon-lg" aria-hidden="true" />
               {t('uploadLabel')}
               <span className="hidden sm:inline">{t('uploadDesktopHint')}</span>
@@ -274,11 +313,11 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         ) : (
           // 已有照片：大按钮收成一行，把表单让到首屏（多页票据继续加页）
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => cameraRef.current?.click()} className="btn-secondary">
+            <button onClick={() => openPicker(cameraRef)} className="btn-secondary">
               <Camera className="icon" aria-hidden="true" />
               {t('takePhoto')}
             </button>
-            <button onClick={() => libraryRef.current?.click()} className="btn-secondary">
+            <button onClick={() => openPicker(libraryRef)} className="btn-secondary">
               <UploadCloud className="icon" aria-hidden="true" />
               {t('uploadShort')}
             </button>
@@ -295,9 +334,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
               >
                 <button
                   type="button"
-                  onClick={() =>
-                    f.kind === 'pdf' ? window.open(URL.createObjectURL(f.full)) : setPreview(f)
-                  }
+                  onClick={() => (f.kind === 'pdf' ? openPdf(f.full) : setPreview(f))}
                   className="h-full w-full"
                   aria-label={f.kind === 'pdf' ? t('openPdf') : t('previewPhoto')}
                 >
@@ -307,7 +344,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
                     </span>
                   ) : (
                     <img
-                      src={URL.createObjectURL(f.thumb ?? f.full)}
+                      src={thumbUrls[i] || undefined}
                       className="h-full w-full object-cover"
                       alt=""
                     />
@@ -332,7 +369,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
                       setCropIndex(i);
                     }}
                     className="absolute bottom-1 left-1 flex h-7 w-7 items-center justify-center rounded-full"
-                    style={{ background: 'rgba(0,0,0,.62)', color: '#fff' }}
+                    style={{ background: 'rgba(0,0,0,.62)', color: 'var(--color-danger-ink)' }}
                     aria-label={t('cropPhoto')}
                   >
                     <CropIcon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -345,14 +382,14 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       </div>
 
       {/* 点缩略图全屏预览，点任意处关闭 */}
-      {preview && (
+      {preview && previewUrl && (
         <div
           className="fade-in fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,.88)' }}
           onClick={() => setPreview(null)}
         >
           <img
-            src={URL.createObjectURL(preview.full)}
+            src={previewUrl}
             className="zoom-in max-h-full max-w-full rounded-lg object-contain"
             alt=""
           />
@@ -421,7 +458,10 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
 
         {space === 'company' && totalCents !== null && (
           <div className="panel flex items-center justify-between px-3 py-2 text-sm muted">
-            <span className="amount">GST {formatNZD(gstCents)} · × 3/23</span>
+            <span className="amount">
+              GST {formatNZD(gstCents)}
+              {gstOverride !== 0 && ' · × 3/23'}
+            </span>
             <button
               onClick={() => setGstOverride(gstOverride === 0 ? null : 0)}
               className="btn-secondary min-h-9 px-3 py-1 text-xs"
@@ -499,7 +539,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
             {t('saveHint')}
           </p>
         )}
-        {canSave && files.length === 0 && (
+        {canSave && files.length === 0 && kind === 'expense' && (
           <p className="-mt-1 text-center text-xs" style={{ color: 'var(--color-warning)' }}>
             {t('noFileNotice')}
           </p>
@@ -515,11 +555,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
           note,
           gstOverride,
         }) && (
-          <button
-            onClick={discard}
-            className="self-center text-xs underline"
-            style={{ color: 'var(--color-ink-muted)' }}
-          >
+          <button onClick={discard} className="btn-secondary min-h-9 self-center px-3 py-1 text-xs">
             {t('discardDraft')}
           </button>
         )}

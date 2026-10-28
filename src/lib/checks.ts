@@ -17,7 +17,10 @@ export function receiptChecks(receipts: Receipt[], fromIso: string): Check[] {
   const groups = new Map<string, Receipt[]>();
   for (const r of receipts) {
     if (r.deleted || r.date < fromIso) continue;
-    const key = [r.space, r.date, r.totalCents, r.merchant.trim().toLowerCase()].join('|');
+    // 带上收支方向：退款（收入）和原支出金额相同不算重复
+    const key = [r.space, kindOf(r), r.date, r.totalCents, r.merchant.trim().toLowerCase()].join(
+      '|',
+    );
     groups.set(key, [...(groups.get(key) ?? []), r]);
     if (r.space !== 'company' || kindOf(r) !== 'expense') continue;
     if (r.gstCents === 0 && r.totalCents > 0 && USUALLY_GST.has(r.category))

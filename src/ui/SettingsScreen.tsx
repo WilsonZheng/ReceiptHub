@@ -17,7 +17,7 @@ import {
 } from '../lib/settings';
 import { AddChip } from './components/AddChip';
 import { setLocale, useLocale, useT, type Locale } from '../lib/i18n';
-import { categoryLabel, isBuiltinCategory } from '../lib/categories';
+import { categoryLabel, isKnownCategory } from '../lib/categories';
 import { setTheme, useTheme, type Theme } from '../lib/theme';
 import { syncNow, useSyncStatus } from '../sync/useSync';
 import { versionLabel } from '../lib/appVersion';
@@ -94,7 +94,9 @@ export function SettingsScreen({
     setLabelDraft('');
   }
   function removeCategory(space: Space, kind: Kind, cat: string) {
+    // 带上 labels：以前只写 categories，删任何一个分类都会把所有自定义译名一起清掉
     const next: AppConfig = {
+      ...config,
       categories: {
         ...config.categories,
         [space]: {
@@ -289,7 +291,8 @@ export function SettingsScreen({
         <h3 className="font-bold">{t('sync')}</h3>
         <p style={{ color: 'var(--color-ink-muted)' }}>
           {t(`status_${status}`)} · {pending} {t('pendingUnit')} · {counts.receipts}{' '}
-          {t('receiptsUnit')} · {counts.photos} {t('photosUnit')}
+          {t(counts.receipts === 1 ? 'receiptUnit' : 'receiptsUnit')} · {counts.photos}{' '}
+          {t(counts.photos === 1 ? 'photoUnit' : 'photosUnit')}
         </p>
         <div className="mt-2 flex gap-2">
           <button onClick={() => void syncNow()} className="btn-secondary">
@@ -330,7 +333,7 @@ export function SettingsScreen({
                     >
                       {categoryLabel(c, locale, config.labels)}{' '}
                       {/* 内置分类天然双语；自定义分类才需用户补当前语言的显示名 */}
-                      {!isBuiltinCategory(c) && (
+                      {!isKnownCategory(c) && (
                         <button
                           onClick={() => (editingLabel === c ? commitLabel() : openLabelEditor(c))}
                           aria-label={t('setDisplayName')}
@@ -342,7 +345,7 @@ export function SettingsScreen({
                       )}
                       <button
                         onClick={() => removeCategory(sp, k, c)}
-                        aria-label={`Remove ${c}`}
+                        aria-label={`${t('remove')} ${categoryLabel(c, locale, config.labels)}`}
                         className="-mr-1 flex h-6 w-6 items-center justify-center rounded-full"
                       >
                         <X className="h-3.5 w-3.5" aria-hidden="true" />

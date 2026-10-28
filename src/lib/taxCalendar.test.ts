@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { daysBetween, taxTasks, urgencyOf, type TaxProfile } from './taxCalendar';
+import { agendaBackDays, daysBetween, taxTasks, urgencyOf, type TaxProfile } from './taxCalendar';
 
 const base: TaxProfile = {
   gstFreq: 'six',
@@ -70,5 +70,20 @@ describe('urgency', () => {
     expect(urgencyOf('2026-10-06', '2026-10-07')).toBe('overdue');
     expect(urgencyOf('2026-10-21', '2026-10-07')).toBe('soon');
     expect(urgencyOf('2026-10-22', '2026-10-07')).toBe('later');
+  });
+});
+
+describe('agendaBackDays', () => {
+  it('keeps a missed deadline visible long after it passed, back to when the app was first used', () => {
+    // 2026-03-01 开始用；7 月底截止的 GST 没报，到 10 月底仍要显示逾期
+    const back = agendaBackDays('2026-03-01', '2026-10-28');
+    expect(back).toBeGreaterThanOrEqual(daysBetween('2026-08-28', '2026-10-28'));
+    expect(back).toBe(daysBetween('2026-03-01', '2026-10-28') + 60);
+  });
+  it('a brand-new user only sees the last 60 days, not a year of old tasks', () => {
+    expect(agendaBackDays('2026-10-28', '2026-10-28')).toBe(60);
+  });
+  it('is capped so a very old install does not list years of tasks', () => {
+    expect(agendaBackDays('2020-01-01', '2026-10-28')).toBe(800);
   });
 });

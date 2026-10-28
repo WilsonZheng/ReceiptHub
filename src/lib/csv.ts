@@ -1,6 +1,10 @@
 import { hasOriginal, kindOf, type Receipt } from '../data/types';
 
-const esc = (s: string): string => (/[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
+// 以 = + - @ 开头的文本在 Excel/Numbers 里会被当公式执行（商家名来自 AI 读的第三方发票），前面加 ' 让它只是文字
+const esc = (raw: string): string => {
+  const s = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
 const money = (cents: number): string => (cents / 100).toFixed(2);
 
 export function receiptsToCsv(receipts: Receipt[]): string {

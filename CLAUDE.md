@@ -43,12 +43,14 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
   └─ 拉取按月文件 SHA 增量
 ```
 
+- **推送后必须把月份文件内容并进本地再记 SHA**（`absorbMonth`）：只记 SHA 不并内容，下次拉取会以为没变而跳过，别的设备写进同月的记录永远下不来（审计发现的严重 bug）。一条 outbox 操作失败不拖住别的（只有照片没传上去的那张先不写月份记录），推送失败照样拉取。
+- 别的设备拍的照片：详情页打开时按需从云端下载（`downloadPhoto`，raw 媒体类型），下载失败显示重试。
 - **同步正确性三件套**：Contents API 的 SHA 即乐观锁（冲突→重 GET→合并→重试）；记录级 LWW（`updatedAt`）；**软删除墓碑**（`deleted: true`，防多设备复活）。
 - **改日期跨月**：`updateReceipt` 额外排一个 `dropFromMonth` outbox 操作，在新月份写好后从旧月份文件删掉这条（只删比本地旧的那份）。以前没有这一步，旧月份会留下旧副本——设备上 LWW 不会算重，但直接读数据仓库算账会算重。
 - 墓碑的代价：任何计数/统计/搜索都必须过滤 `!r.deleted`——曾因裸 `count()` 出过"删了还显示 1 张"的 bug。
 - **原始票据可以暂缺**：`photos: []` 就是「缺票据」（会计代记、暂时找不到票的开支），用 `hasOriginal()` 判断。拍照页没照片也能存；列表顶部显示缺票据的支出笔数和合计、可只看这些，每行标「缺票据」；详情页可事后补照片/PDF（`attachFiles`）；CSV 有 `Original receipt` 列（Attached/Missing）给会计核对。会计代记的开支备注以「会计代记」开头。
 - `Receipt.kind?: 'income'|'expense'`，缺省视为 expense（`kindOf()` 读取，兼容旧数据）。
-- **分类存储恒为英文规范名**，中文只在显示层翻译（`lib/categories.ts`）——换语言数据不乱、CSV 对会计稳定。用户自建分类原样显示。
+- **分类存储恒为英文规范名**，中文只在显示层翻译（`lib/categories.ts`）——换语言数据不乱、CSV 对会计稳定。字典里除默认分类外还收了记账常用分类（Insurance 保险、Tools 工具、Repairs 维修、Vehicle Maintenance 车辆维护…）；`canonicalCategoryName` 把中文名和同义词（保险、车维护、电话费…）归到英文 key，添加分类、读旧配置、显示旧数据都走它。字典外的自建分类原样显示，可在设置里补译名。记录里用到、本机列表没有的分类在同步后自动补进列表（`adoptUsedCategories`，每个只收一次，用户删掉的不再回来）。
 - 草稿（`lib/draft.ts`）是模块级内存单例：切 Tab 不丢（含照片 blob），刻意不持久化（blob 进不了 localStorage，半截草稿更糟）。
 
 ## 认证（用户明确拍板，勿改）
@@ -110,6 +112,7 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 - mock GitHub API 用 `page.route` 内存 Map（见 `mockGithub`）；mock Mistral/Gemini 同理。
 - `getByRole` 的 `name` 默认**子串+大小写不敏感**；`exact: true` 则**大小写敏感**（曾因 'all'≠'All' 翻车）。Tab 按钮可访问名含 emoji 前缀（"📷 拍照"），中文断言时注意 strict mode 多元素冲突。
 - 锁屏解锁 helper 直接填 PAT；测试值 `github_pat_test`。
+- **用 WebKit 模拟 iPhone 时要用 `webkit.launchPersistentContext`**：默认的 `newContext` 相当于 Safari 无痕模式，IndexedDB 存不了 Blob（`UnknownError: Error preparing Blob/File data to be stored in object store`），照片保存/云端照片下载都会失败，看起来像 App 的 bug，其实不是。
 
 ## 文档
 

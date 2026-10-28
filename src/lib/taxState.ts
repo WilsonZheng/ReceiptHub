@@ -7,6 +7,7 @@ import type { TaxProfile } from './taxCalendar';
 const PROFILE_KEY = 'rh.tax.profile';
 const DONE_KEY = 'rh.tax.done';
 const ACK_KEY = 'rh.tax.ack';
+const SINCE_KEY = 'rh.tax.since'; // 本机第一次算税务待办的日期：逾期事项往回显示到这天之前 60 天
 
 type StoredProfile = Omit<TaxProfile, 'gstFreq'>;
 const DEFAULT_PROFILE: StoredProfile = {
@@ -54,6 +55,18 @@ const subscribe = (fn: () => void) => {
 };
 /** 任何税务状态变化都会让使用者重新渲染 */
 export const useTaxStateVersion = () => useSyncExternalStore(subscribe, () => version);
+
+/** 第一次调用时记下今天；之后一直返回那一天 */
+export function getTaxSince(today: string): string {
+  try {
+    const saved = localStorage.getItem(SINCE_KEY);
+    if (saved && /^\d{4}-\d{2}-\d{2}$/.test(saved)) return saved;
+    localStorage.setItem(SINCE_KEY, today);
+  } catch {
+    /* 存储不可用：按今天算，等于旧行为（往回 60 天） */
+  }
+  return today;
+}
 
 export function getTaxProfile(): TaxProfile {
   return { ...read(PROFILE_KEY, DEFAULT_PROFILE), gstFreq: getGstFrequency() };

@@ -92,12 +92,14 @@ export function ExportScreen({ space }: { space: Space }) {
   const gst = useMemo(() => gstReturn(receipts), [receipts]);
 
   function download() {
-    const blob = new Blob([receiptsToCsv(receipts)], { type: 'text/csv' });
+    // 开头的 BOM 让 Excel 按 UTF-8 打开，中文商家名/备注不乱码
+    const blob = new Blob(['\uFEFF', receiptsToCsv(receipts)], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     a.download = `receipthub-${space}-${from}-to-${to}.csv`;
     a.click();
-    URL.revokeObjectURL(a.href);
+    // WebKit 里立刻释放会取消下载，稍等再释放（税务页导出日历同理）
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
   return (
@@ -122,8 +124,8 @@ export function ExportScreen({ space }: { space: Space }) {
         })}
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <DateField value={from} onChange={(v) => setSel({ from: v, to })} />
-        <DateField value={to} onChange={(v) => setSel({ from, to: v })} />
+        <DateField label={t('fromDate')} value={from} onChange={(v) => setSel({ from: v, to })} />
+        <DateField label={t('toDate')} value={to} onChange={(v) => setSel({ from, to: v })} />
       </div>
       <div className="panel panel-pad">
         <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>

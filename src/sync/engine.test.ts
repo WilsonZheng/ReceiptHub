@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { db } from '../data/db';
-import { saveReceipt, updateReceipt } from '../data/repo';
+import { saveReceipt, softDeleteReceipt, updateReceipt } from '../data/repo';
 import { ConflictError, type GithubClient } from './github';
-import { flushOutbox, pullSpace } from './engine';
+import { downloadPhoto, flushOutbox, pullAll, pullSpace } from './engine';
 
 beforeEach(async () => {
   await Promise.all([db.receipts.clear(), db.photos.clear(), db.outbox.clear(), db.kv.clear()]);
@@ -137,6 +137,70 @@ describe('flushOutbox', () => {
   });
 });
 
+describe('flush then pull', () => {
+  const other = (over: Record<string, unknown>) => ({
+    id: '01HOTHERDEVICE00000000000X',
+    space: 'company',
+    kind: 'expense',
+    date: '2026-06-02',
+    merchant: 'From phone B',
+    totalCents: 500,
+    gstCents: 65,
+    category: 'Other',
+    photos: [],
+    createdAt: '2026-06-02T00:00:00Z',
+    updatedAt: '2026-06-02T00:00:00Z',
+    ...over,
+  });
+
+  it('pushing into a month that another device also wrote still brings their records down', async () => {
+    const remote = new Map([
+      ['company/2026-06.json', { text: JSON.stringify([other({})]), sha: 3 }],
+    ]);
+    const client = fakeClient(remote);
+    await saveReceipt({ ...input, files: [] });
+    await flushOutbox(client);
+    await pullAll(client);
+    expect((await db.receipts.get('01HOTHERDEVICE00000000000X'))?.merchant).toBe('From phone B');
+  });
+
+  it('a newer edit from another device in a month I push to is not lost', async () => {
+    const mine = await saveReceipt({ ...input, files: [] });
+    await db.outbox.clear();
+    const editedOnB = { ...mine, merchant: 'EditedOnB', updatedAt: '2999-01-01T00:00:00.000Z' };
+    const remote = new Map([
+      ['company/2026-06.json', { text: JSON.stringify([editedOnB]), sha: 1 }],
+    ]);
+    const client = fakeClient(remote);
+    await saveReceipt({ ...input, merchant: 'Another', files: [] });
+    await flushOutbox(client);
+    await pullAll(client);
+    expect((await db.receipts.get(mine.id))?.merchant).toBe('EditedOnB');
+  });
+
+  it('one photo that keeps failing does not block other receipts', async () => {
+    const remote = new Map<string, { text: string; sha: number }>();
+    const client = fakeClient(remote);
+    (client.putRaw as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('github PUT: 413'));
+    const withPhoto = await saveReceipt(input);
+    const plain = await saveReceipt({ ...input, merchant: 'No photo', files: [] });
+    await expect(flushOutbox(client)).rejects.toThrow('413');
+    const pushed = JSON.parse(remote.get('company/2026-06.json')!.text) as { id: string }[];
+    expect(pushed.map((r) => r.id)).toEqual([plain.id]); // 带照片的那张等照片传上去再写
+    const left = await db.outbox.toArray();
+    expect(left.map((o) => o.kind).sort()).toEqual(['putPhoto', 'upsertReceipt']);
+    expect(left.every((o) => o.refId !== plain.id)).toBe(true);
+    expect(withPhoto.id).toBeTruthy();
+  });
+
+  it('deleting a receipt drops its local photos and photo uploads still queued', async () => {
+    const rec = await saveReceipt(input);
+    await softDeleteReceipt(rec.id);
+    expect(await db.photos.count()).toBe(0);
+    expect((await db.outbox.toArray()).map((o) => o.kind)).not.toContain('putPhoto');
+  });
+});
+
 describe('pullSpace', () => {
   it('fetches changed months and merges into local', async () => {
     const remoteRec = {
@@ -175,5 +239,23 @@ describe('pullSpace', () => {
     ]);
     await pullSpace(fakeClient(remote), 'company');
     expect((await db.receipts.get(rec.id))?.merchant).toBe('Bunnings');
+  });
+});
+
+describe('downloadPhoto', () => {
+  it('fetches a photo that only exists in the cloud and stores it as synced', async () => {
+    const client = {
+      getBlob: vi.fn(async () => new Blob(['img'])),
+    } as unknown as GithubClient;
+    const row = await downloadPhoto(client, 'R1', { id: 'P1', kind: 'pdf' });
+    expect(client.getBlob).toHaveBeenCalledWith('photos/R1/P1.pdf');
+    expect(row?.full.type).toBe('application/pdf');
+    expect(await db.photos.get('P1')).toMatchObject({ receiptId: 'R1', kind: 'pdf', synced: 1 });
+  });
+
+  it('returns null when the file is not in the cloud (yet)', async () => {
+    const client = { getBlob: vi.fn(async () => null) } as unknown as GithubClient;
+    expect(await downloadPhoto(client, 'R1', { id: 'P2', kind: 'webp' })).toBeNull();
+    expect(await db.photos.count()).toBe(0);
   });
 });

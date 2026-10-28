@@ -3,13 +3,16 @@ import {
   type AppConfig,
   type CategoryLabels,
   type Kind,
+  type Receipt,
   type Space,
 } from '../data/types';
+import { canonicalCategoryName } from './categories';
 import type { Locale } from './i18n';
 import type { GstFrequency } from './periods';
 
 const PAT_KEY = 'rh.pat';
 const CONFIG_KEY = 'rh.config';
+const ADOPTED_KEY = 'rh.cat.adopted'; // 已从记录里收过的分类：用户删掉后不再自动加回
 const AI_PROVIDER_KEY = 'rh.ai.provider';
 const AI_KEYS = {
   mistral: 'rh.mistral',
@@ -64,9 +67,74 @@ export function getConfig(): AppConfig {
       },
     };
     setConfig(migrated);
-    return migrated;
+    return normalizeCategories(migrated);
   }
-  return parsed as AppConfig;
+  return normalizeCategories(parsed as AppConfig);
+}
+
+/** 已存配置里的中文/同义词分类名归到英文规范名（去重，译名跟着搬），有变化才写回 */
+function normalizeCategories(cfg: AppConfig): AppConfig {
+  let changed = false;
+  const fix = (list: string[]) => {
+    const out: string[] = [];
+    for (const c of list) {
+      const k = canonicalCategoryName(c);
+      if (k !== c) changed = true;
+      if (!out.includes(k)) out.push(k);
+      else changed = true;
+    }
+    return out;
+  };
+  const categories = {
+    company: {
+      expense: fix(cfg.categories.company.expense),
+      income: fix(cfg.categories.company.income),
+    },
+    personal: {
+      expense: fix(cfg.categories.personal.expense),
+      income: fix(cfg.categories.personal.income),
+    },
+  };
+  let labels = cfg.labels;
+  if (labels) {
+    const moved: CategoryLabels = {};
+    for (const [name, entry] of Object.entries(labels)) {
+      const k = canonicalCategoryName(name);
+      if (k !== name) changed = true;
+      moved[k] = { ...entry, ...moved[k] };
+    }
+    labels = moved;
+  }
+  if (!changed) return cfg;
+  const next: AppConfig = labels ? { categories, labels } : { categories };
+  setConfig(next);
+  return next;
+}
+
+/**
+ * 记录里用到、但分类列表里没有的分类（别的设备加的、导入的）补进列表，编辑时才能选中。
+ * 每个分类只收一次：用户之后自己删掉的，不会因为同步又冒出来。
+ */
+export function adoptUsedCategories(receipts: Receipt[]): void {
+  let seen: string[] = [];
+  try {
+    seen = JSON.parse(localStorage.getItem(ADOPTED_KEY) ?? '[]') as string[];
+  } catch {
+    seen = [];
+  }
+  const seenSet = new Set(seen);
+  let cfg = getConfig();
+  for (const r of receipts) {
+    if (r.deleted || !r.category) continue;
+    const kind: Kind = r.kind ?? 'expense';
+    const name = canonicalCategoryName(r.category);
+    const key = `${r.space}|${kind}|${name}`;
+    if (seenSet.has(key)) continue;
+    seenSet.add(key);
+    if (!cfg.categories[r.space][kind].includes(name))
+      cfg = addCategoryToConfig(r.space, kind, name);
+  }
+  if (seenSet.size !== seen.length) localStorage.setItem(ADOPTED_KEY, JSON.stringify([...seenSet]));
 }
 export function setConfig(c: AppConfig): void {
   localStorage.setItem(CONFIG_KEY, JSON.stringify(c));
@@ -76,9 +144,10 @@ export function setConfig(c: AppConfig): void {
 export function addCategoryToConfig(space: Space, kind: Kind, name: string): AppConfig {
   const cfg = getConfig();
   const list = cfg.categories[space][kind];
-  const trimmed = name.trim();
+  const trimmed = canonicalCategoryName(name);
   if (!trimmed || list.some((c) => c.toLowerCase() === trimmed.toLowerCase())) return cfg;
   const next: AppConfig = {
+    ...cfg,
     categories: {
       ...cfg.categories,
       [space]: { ...cfg.categories[space], [kind]: [...list, trimmed] },
@@ -90,9 +159,9 @@ export function addCategoryToConfig(space: Space, kind: Kind, name: string): App
 
 /** 找到与 name 大小写等价的现有规范名（用于添加后选中） */
 export function canonicalCategory(cfg: AppConfig, space: Space, kind: Kind, name: string): string {
+  const wanted = canonicalCategoryName(name);
   return (
-    cfg.categories[space][kind].find((c) => c.toLowerCase() === name.trim().toLowerCase()) ??
-    name.trim()
+    cfg.categories[space][kind].find((c) => c.toLowerCase() === wanted.toLowerCase()) ?? wanted
   );
 }
 
