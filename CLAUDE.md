@@ -68,6 +68,7 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 - **IRD 截止日**：GST 期末次月 28 日，例外 3 月结束 → 5/7、11 月结束 → 次年 1/15；所得税（IR3/IR4，无税务代理）财年后 7/7。
 - **myIR 申报栏位**（`lib/gst.ts`）：第 8/12 栏按 IRD 算法用**栏位总额 × 3/23**，不是逐张 GST 求和（会差几分）。无 GST 的收入 = 零税率（第 6 栏）；`Interest` 收入免税不计入；无 GST 的支出不进第 11 栏。不含调整项（第 9、13 栏）。
 - **税务页**（`TaxScreen`，不用 AI，全是规则）：`lib/taxCalendar.ts` 按"你的情况"（`rh.tax.profile`：税务代理、预缴税、PAYE、Companies Office 年度申报月份）生成截止日——GST、所得税 IR4/IR3（无代理 7/7，有代理次年 3/31）、年终税（2/7 或 4/7）、预缴税（标准法 8/28、1/15、5/7；每半年报 GST 的只有 10/28、5/7）、PAYE（次月 20 日）、年度申报（申报月月底）。已完成存 `rh.tax.done`，核对过的票据提醒存 `rh.tax.ack`；`lib/taxState.ts` 带订阅，导航角标（逾期或 14 天内）和每页顶部横幅（逾期或 7 天内）同步刷新。App 关着时的提醒靠导出 `.ics` 进手机日历（提前 7 天和前一天 9 点）。指南文案在 `lib/taxGuides.ts`（`{ en, zh }` 成对），规则改动要和 `taxCalendar.ts` 一起改。
+- **混合票据的第 11 栏**：`gstCents` 不等于 3/23 推算值（且大于 0）时，只把含 GST 的部分 `gstCents × 23/3` 算进第 11 栏，不是整张总额。
 - 金额一律整数分（`totalCents`），显示层才格式化。
 - **时区**：NZ=UTC+12，`toISOString().slice(0,10)` 每天上午给出昨天的日期——**严禁**。一律用 `lib/dates.ts` 的 `localToday()`。
 
@@ -91,6 +92,10 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 - **为什么不用 `/v1/ocr`（踩过的坑，别改回去）**：Mistral 免费订阅层**不包含任何 OCR 模型**。七个 `mistral-ocr-*` 全部在 `/v1/ocr` 上返回 429，`x-ratelimit-limit-req-minute: 0`。限额是**按模型**算的，0 的含义是"这个模型不在你的层级"，不是"你用超了"——Mistral 对此有两种表达：`mistral-large-latest` 给明确的 403 `This model is not available in your subscription tier`，其余给限额 0 的 429，后者极易误判成限流。免费层实测可用：`ministral-14b-2512`（每分钟 30 次）、`ministral-8b-2512`（188 次）、`ministral-3b-latest`（750 次）；不可用：`mistral-small` / `medium` / `magistral-small` / 全部 OCR。诊断方法是 curl 打一次看那个响应头。
 - **Gemini（兼容选项）**：`gemini-2.5-flash`，图片/PDF 走 `inline_data`，多页合并进一个请求；请求体超过约 18.5MB 在客户端拒绝。浏览器 CORS 已实测支持。
 - **日期日在前**：模型偶尔把 `05/10/2026` 读成美式 5 月 10 日。schema 额外要 `dateText`（票面原文），`parsePrintedDate` 在客户端按 NZ 日在前重新解析（`YYYY/MM/DD` 年在前除外），优先于模型给的 `date`；原文带月份单词或解析出不存在的日期（海外单据 `05/13/2026`）时才退回模型的 `date`。prompt 里也写明了日在前。
+- **收入发票记客户**：schema 另要 `billTo`，`kind: income` 时商家记 `billTo`（以前 7 张销售发票的商家全是自己公司 Fastbolt，看不出是哪个客户付的）。`issuer`/`billTo` 都留在 `Extraction` 里，拍照页手动切换收支时商家名跟着换。
+- **票面 GST**：schema 另要 `gst`。比 3/23 少 2 分以上才用票面值（`gstCents`）：卖方没注册 GST、政府罚款（给 0），混合票据（买车发票里注册费不含 GST）给票面数；差几分是四舍五入照常自动；比 3/23 还多是读错了，丢弃。详情页编辑保留这个值（`gstOverride`），改金额才回到 3/23。
+- **按历史纠正**（`lib/merchants.ts`）：AI 读出的商家以前记过（忽略大小写、空格、标点）就沿用当时的写法；同一空间同一收支里这家商家上次用的分类优先于 AI 猜的分类；手填商家失焦时也会带出上次的分类。
+- prompt 把字典里的双语分类名列给 AI 作为"现有列表都不合适时"的首选新分类（挑中的自动有中文），并写明维修服务是 Repairs 不是 Equipment。
 - 两条路径共享结构化校验：日期正则（并校验是真实存在的日历日期）、金额限幅、分类大小写归并或限长提名、items/note 截断；数字字符串金额也可容错解析。
 - 429、408/425、5xx 和浏览器网络故障最多重试 3 次并尊重 `Retry-After`（最长等 10 秒）。错误分为 key / 限流 / 网络 / 文件请求 / 空识别 / 解析；**2xx 无内容不许再静默返回 `{}`**，错误响应也必须把服务端原话带进 `ExtractError.detail` 并显示出来。
 - **浏览器读不到 Mistral 的限流头**：它的响应只有 `access-control-allow-origin: *`，没有 `Access-Control-Expose-Headers`，所以 `x-ratelimit-*` 和 `Retry-After` 在 fetch 里一律是 `null`——`retryDelay` 的 `Retry-After` 分支实际只在 curl/服务端场景生效，浏览器里永远走固定退避。响应体是唯一能读到的线索。

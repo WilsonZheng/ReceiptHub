@@ -54,7 +54,8 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
   const [note, setNote] = useState('');
   const [itemsText, setItemsText] = useState('');
   const [kind, setKind] = useState<Kind>('expense');
-  const [noGst, setNoGst] = useState(false);
+  // null = 按 3/23；0 = 无 GST；其他 = 票面 GST（混合票据）
+  const [gstOverride, setGstOverride] = useState<number | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [zoomUrl, setZoomUrl] = useState<string | null>(null);
   const [attaching, setAttaching] = useState(false);
@@ -80,8 +81,10 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
     setCategory(r.category);
     setNote(r.note ?? '');
     setItemsText((r.items ?? []).join('\n'));
-    // 存的时候选了"无 GST"——编辑时保持，不能悄悄按 3/23 重算
-    setNoGst(r.space === 'company' && r.gstCents === 0 && r.totalCents > 0);
+    // 存的是"无 GST"或票面 GST——编辑时保持，不能悄悄按 3/23 重算
+    setGstOverride(
+      r.space === 'company' && r.gstCents !== gstFromTotalCents(r.totalCents) ? r.gstCents : null,
+    );
   }
 
   useEffect(() => {
@@ -174,7 +177,8 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
     category && !kindList.includes(category) ? [...kindList, category] : kindList;
   const isCompany = receipt.space === 'company';
   const totalCents = parseNZD(total);
-  const gstCents = !isCompany || noGst || totalCents === null ? 0 : gstFromTotalCents(totalCents);
+  const gstCents =
+    !isCompany || totalCents === null ? 0 : (gstOverride ?? gstFromTotalCents(totalCents));
   const canSave = totalCents !== null && merchant.trim() !== '' && category !== '';
   const sign = kindOf(receipt) === 'income' ? '+' : '-';
 
@@ -533,7 +537,11 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
               <input
                 inputMode="decimal"
                 value={total}
-                onChange={(e) => setTotal(e.target.value)}
+                onChange={(e) => {
+                  setTotal(e.target.value);
+                  // 票面 GST 跟着旧金额走，金额改了就按 3/23 重算；「无 GST」保持
+                  setGstOverride((g) => (g === 0 ? 0 : null));
+                }}
                 placeholder={t('totalInclGst')}
                 aria-label={t('totalInclGst')}
                 className="field amount"
@@ -543,13 +551,15 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
               <div className="panel flex items-center justify-between px-3 py-2 text-sm muted">
                 <span className="amount">
                   GST {formatNZD(gstCents)}
-                  {!noGst && ' · × 3/23'}
+                  {gstOverride === null
+                    ? ' · × 3/23'
+                    : gstOverride > 0 && ` · ${t('gstAsPrinted')}`}
                 </span>
                 <button
-                  onClick={() => setNoGst(!noGst)}
+                  onClick={() => setGstOverride(gstOverride === 0 ? null : 0)}
                   className="btn-secondary min-h-9 px-3 py-1 text-xs"
                 >
-                  {noGst ? t('gstAuto') : t('noGst')}
+                  {gstOverride === 0 ? t('gstAuto') : t('noGst')}
                 </button>
               </div>
             )}

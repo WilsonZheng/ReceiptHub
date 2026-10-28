@@ -30,7 +30,10 @@ export function gstReturn(receipts: Receipt[]): GstReturn {
       box5 += r.totalCents;
       if (r.gstCents === 0) box6 += r.totalCents; // 无 GST 的收入按零税率申报
     } else if (r.gstCents > 0) {
-      box11 += r.totalCents; // 无 GST 的支出没有可抵扣的进项
+      // 无 GST 的支出没有可抵扣的进项。混合票据（例如买车的发票里，车辆注册费不含 GST）
+      // 存的是票面 GST，只有含 GST 的那部分金额进第 11 栏
+      box11 +=
+        r.gstCents === gstOf(r.totalCents) ? r.totalCents : Math.round((r.gstCents * 23) / 3);
     }
   }
   const box8 = gstOf(box5 - box6);

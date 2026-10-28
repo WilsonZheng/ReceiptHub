@@ -43,6 +43,7 @@ describe('extractReceipt', () => {
     const r = await extractReceipt([file], GEMINI_OPTS);
     expect(r).toEqual({
       merchant: 'Bunnings Warehouse',
+      issuer: 'Bunnings Warehouse',
       date: '2026-06-05',
       totalCents: 18450,
       kind: 'expense',
@@ -66,6 +67,7 @@ describe('extractReceipt', () => {
     );
     await expect(extractReceipt([file], MISTRAL_OPTS)).resolves.toEqual({
       merchant: 'Z Energy',
+      issuer: 'Z Energy',
       date: '2026-08-20',
       totalCents: 9230,
       kind: 'expense',
@@ -138,6 +140,7 @@ describe('extractReceipt', () => {
 
     await expect(extractReceipt(files, MISTRAL_OPTS)).resolves.toEqual({
       merchant: 'Multi Page Co',
+      issuer: 'Multi Page Co',
       date: '2026-08-21',
       totalCents: 12000,
       kind: 'expense',
@@ -322,6 +325,60 @@ describe('extractReceipt', () => {
       }),
     );
     await expect(extractReceipt([file], MISTRAL_OPTS)).rejects.toMatchObject({ reason: 'parse' });
+  });
+
+  it('records the client, not your own company, as the merchant of an invoice you issued', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      mistralReply({
+        merchant: 'FASTBOLT LIMITED',
+        billTo: 'CLYMA DEVELOPMENT LIMITED',
+        total: '41400.00',
+        gst: '5400.00',
+        kind: 'income',
+        category: 'Sales',
+      }),
+    );
+    const r = await extractReceipt([file], MISTRAL_OPTS);
+    expect(r).toMatchObject({
+      merchant: 'CLYMA DEVELOPMENT LIMITED',
+      issuer: 'FASTBOLT LIMITED',
+      billTo: 'CLYMA DEVELOPMENT LIMITED',
+      kind: 'income',
+    });
+    // 票面 GST 正好是 3/23，不给 gstCents（照常自动算）
+    expect(r.gstCents).toBeUndefined();
+  });
+
+  it('keeps the issuer as the merchant of an expense even when you are the Bill To', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      mistralReply({ merchant: 'AA Insurance', billTo: 'Fastbolt Limited', total: '1751.20' }),
+    );
+    const r = await extractReceipt([file], MISTRAL_OPTS);
+    expect(r.merchant).toBe('AA Insurance');
+  });
+
+  it('uses the printed GST for no-GST and mixed invoices, and ignores impossible values', async () => {
+    const run = async (total: string, gst: string | null) => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+        mistralReply({ merchant: 'X', total, gst }),
+      );
+      return (await extractReceipt([file], MISTRAL_OPTS)).gstCents;
+    };
+    expect(await run('150.00', '0.00')).toBe(0); // 卖方没注册 GST
+    expect(await run('70257.02', '9091.30')).toBe(909130); // 车辆注册费不含 GST
+    expect(await run('100.00', '13.05')).toBeUndefined(); // 3/23 = 13.04，差一分是四舍五入
+    expect(await run('100.00', '15.00')).toBeUndefined(); // 比 3/23 还多：读成了不含税的 15%
+    expect(await run('100.00', null)).toBeUndefined(); // 票面没写 GST
+    expect(await run('100.00', '')).toBeUndefined();
+  });
+
+  it('offers the standard bilingual category names when the list has no good match', async () => {
+    const spy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(mistralReply({ merchant: 'X' }));
+    await extractReceipt([file], MISTRAL_OPTS);
+    const prompt = String(spy.mock.calls[0][1]?.body);
+    expect(prompt).toContain('Repairs');
+    expect(prompt).toContain('Accounting Fees');
+    expect(prompt).toMatch(/billTo/);
   });
 
   it('unknown category becomes a proposal and invalid date is dropped', async () => {

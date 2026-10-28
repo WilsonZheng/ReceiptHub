@@ -316,6 +316,65 @@ test('Mistral AI extract: upload → structured extraction → form filled → s
   await expect(page.getByText('Milk 2L ×2 · Bread')).toBeVisible(); // 列表卡片显示 items
 });
 
+test('AI fill reuses your past spelling and category, the printed GST, and the client name', async ({
+  page,
+}) => {
+  const replies = [
+    // 卖方没注册 GST；商家以前记过，大小写不同
+    { merchant: 'GUO MING MAINTENANCE LTD', total: '161.00', gst: '0.00', category: 'Equipment' },
+    // 自己开给客户的发票：开票方是自己的公司
+    {
+      merchant: 'FASTBOLT LIMITED',
+      billTo: 'Clyma Development Limited',
+      total: '41400.00',
+      gst: '5400.00',
+      kind: 'income',
+      category: 'Services',
+    },
+  ];
+  await page.route('https://api.mistral.ai/v1/chat/completions', (route) =>
+    route.fulfill({
+      json: { choices: [{ message: { content: JSON.stringify(replies.shift()) } }] },
+    }),
+  );
+  await page.evaluate(() => {
+    localStorage.setItem('rh.ai.provider', 'mistral');
+    localStorage.setItem('rh.mistral', 'test-ai-key');
+  });
+  await page.reload();
+  await addReceipt(page, 'Guo Ming Maintenance Ltd', '50.00', 'Other');
+  await page.getByRole('button', { name: /Capture$/ }).click();
+
+  const upload = async () => {
+    const chooserPromise = page.waitForEvent('filechooser');
+    await page.getByText('Upload from library').click();
+    await (
+      await chooserPromise
+    ).setFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: PNG });
+    await page.getByRole('button', { name: 'AI fill' }).click();
+  };
+
+  await upload();
+  const merchant = page.getByPlaceholder('Merchant', { exact: true });
+  await expect(merchant).toHaveValue('Guo Ming Maintenance Ltd');
+  await expect(page.getByRole('button', { name: 'Other', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.getByText('GST $0.00')).toBeVisible();
+  await page.getByRole('button', { name: 'Discard draft' }).click();
+
+  await upload();
+  await expect(merchant).toHaveValue('Clyma Development Limited');
+  await expect(page.getByRole('button', { name: 'Income', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  // 手动切回支出：商家名换回开票方
+  await page.getByRole('button', { name: 'Expense', exact: true }).click();
+  await expect(merchant).toHaveValue('FASTBOLT LIMITED');
+});
+
 test('AI provider settings keep separate Mistral/Gemini keys and legacy Gemini users', async ({
   page,
 }) => {

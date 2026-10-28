@@ -92,6 +92,9 @@ export function isKnownCategory(name: string): boolean {
   return canonicalCategoryName(name) in ZH;
 }
 
+// 字典里所有自带中英文的分类名：AI 提名新分类时优先从这里挑，挑中的自动有中文
+export const knownCategoryNames = (): string[] => Object.keys(ZH);
+
 /**
  * 分类的显示名。优先级：用户在设置里填的 locale 译名 → 内置中英字典 → 原样 key。
  * canonical key（存储值）始终不变，本函数只决定怎么"显示"；中文 key 的旧数据也按字典显示。

@@ -21,7 +21,8 @@ import { saveReceipt } from '../data/repo';
 import { db } from '../data/db';
 import { DateField } from './components/DateField';
 import { ImageCropper } from './components/ImageCropper';
-import type { Kind, Space } from '../data/types';
+import { knownMerchantSpelling, lastCategoryFor } from '../lib/merchants';
+import type { Kind, Receipt, Space } from '../data/types';
 
 export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () => void }) {
   const cameraRef = useRef<HTMLInputElement>(null);
@@ -37,7 +38,10 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
   const [category, setCategory] = useState(d0.category);
   const [items, setItems] = useState(d0.items);
   const [note, setNote] = useState(d0.note);
-  const [merchants, setMerchants] = useState<string[]>([]);
+  // 最近的记录（按修改时间倒序）：商家名补全、统一拼写、按这家商家上次的分类自动选
+  const [history, setHistory] = useState<Receipt[]>([]);
+  // AI 读出的开票方和客户：手动切换收支时，商家名跟着换成另一方
+  const parties = useRef<{ issuer?: string; billTo?: string }>({});
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState<ProcessedFile | null>(null);
@@ -50,10 +54,25 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
     void db.receipts
       .orderBy('updatedAt')
       .reverse()
-      .limit(200)
+      .limit(300)
       .toArray()
-      .then((rs) => setMerchants([...new Set(rs.map((r) => r.merchant))]));
+      .then((rs) => setHistory(rs.filter((r) => !r.deleted)));
   }, []);
+  const merchants = [...new Set(history.map((r) => r.merchant))];
+
+  function chooseKind(k: Kind) {
+    const { issuer, billTo } = parties.current;
+    if (k === 'income' && billTo && merchant === issuer) setMerchant(billTo);
+    if (k === 'expense' && issuer && merchant === billTo) setMerchant(issuer);
+    setKind(k);
+  }
+
+  // 手动填的商家以前记过：沿用那次的分类（还没选分类时）
+  function fillCategoryFromHistory() {
+    if (category) return;
+    const past = lastCategoryFor(merchant, space, kind, history);
+    if (past && getConfig().categories[space][kind].includes(past)) setCategory(past);
+  }
 
   // 空间或收支类型切换时，已选分类可能不在新列表里——重置（首渲染跳过，保护草稿恢复的分类）
   const firstRun = useRef(true);
@@ -224,21 +243,32 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         files.map((f) => ({ blob: f.full, kind: f.kind })),
         { apiKey: aiKey, provider: aiProvider, categories: getConfig().categories[space], locale },
       );
+      const k = r.kind ?? kind;
       if (r.kind) setKind(r.kind);
-      if (r.merchant) setMerchant(r.merchant);
+      // 以前记过的商家沿用当时的写法（"FASTBOLT LIMITED" 和 "Fastbolt Limited" 只留一种）
+      const name = r.merchant && (knownMerchantSpelling(r.merchant, history) ?? r.merchant);
+      if (name) setMerchant(name);
+      parties.current = {
+        issuer: r.issuer && (knownMerchantSpelling(r.issuer, history) ?? r.issuer),
+        billTo: r.billTo && (knownMerchantSpelling(r.billTo, history) ?? r.billTo),
+      };
       if (r.date) setDate(r.date);
       if (r.totalCents !== undefined) {
         setTotal((r.totalCents / 100).toFixed(2));
-        setGstOverride(null);
+        // 票面写明不含 GST，或只有部分含 GST：按票面；否则按 3/23
+        setGstOverride(r.gstCents ?? null);
       }
       if (r.items?.length) setItems(r.items.join('\n'));
       if (r.note) setNote(r.note);
+      // 这家商家以前记过：用你上次选的分类，比 AI 猜的准
+      const past = name ? lastCategoryFor(name, space, k, history) : undefined;
       // setKind 的 effect 会清空 category，这里用 setTimeout 排到其后
-      if (r.category) {
+      if (past && getConfig().categories[space][k].includes(past)) {
+        setTimeout(() => setCategory(past), 0);
+      } else if (r.category) {
         setTimeout(() => setCategory(r.category!), 0);
       } else if (r.newCategory) {
         // AI 提名的新分类：自动加入该空间该收支类型并选中
-        const k = r.kind ?? kind;
         const next = addCategoryToConfig(space, k, r.newCategory);
         const canonical = canonicalCategory(next, space, k, r.newCategory);
         setTimeout(() => setCategory(canonical), 0);
@@ -438,6 +468,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
           placeholder={t('merchant')}
           value={merchant}
           onChange={(e) => setMerchant(e.target.value)}
+          onBlur={fillCategoryFromHistory}
           className="field"
         />
         <datalist id="merchants">
@@ -451,7 +482,8 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
           value={total}
           onChange={(e) => {
             setTotal(e.target.value);
-            setGstOverride(null);
+            // 票面 GST 跟着旧金额走，金额改了就按 3/23 重算；选了「无 GST」的保持
+            setGstOverride((g) => (g === 0 ? 0 : null));
           }}
           className="field amount"
         />
@@ -460,7 +492,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
           <div className="panel flex items-center justify-between px-3 py-2 text-sm muted">
             <span className="amount">
               GST {formatNZD(gstCents)}
-              {gstOverride !== 0 && ' · × 3/23'}
+              {gstOverride === null ? ' · × 3/23' : gstOverride > 0 && ` · ${t('gstAsPrinted')}`}
             </span>
             <button
               onClick={() => setGstOverride(gstOverride === 0 ? null : 0)}
@@ -475,7 +507,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
           {(['expense', 'income'] as const).map((k) => (
             <button
               key={k}
-              onClick={() => setKind(k)}
+              onClick={() => chooseKind(k)}
               aria-pressed={kind === k}
               className="segmented-btn flex-1"
               style={
@@ -494,6 +526,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
             <button
               key={c}
               onClick={() => setCategory(c)}
+              aria-pressed={category === c}
               className="chip-btn"
               style={
                 category === c

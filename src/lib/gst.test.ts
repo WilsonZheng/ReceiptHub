@@ -27,6 +27,13 @@ describe('gstReturn', () => {
     expect(r).toEqual({ box5: 23000, box6: 0, box8: 3000, box11: 11500, box12: 1500, box15: 1500 });
   });
 
+  it('puts only the GST-bearing part of a mixed invoice into box 11', () => {
+    // 买车：$70,257.02，其中车辆注册费 $557.02 不含 GST，票面 GST $9,091.30
+    const r = gstReturn([rec(7025702, { gstCents: 909130 })]);
+    expect(r.box11).toBe(6969997);
+    expect(r.box12).toBe(909130);
+  });
+
   it('computes GST from the box total (IRD method), not the sum of rounded receipts', () => {
     // 两张 $10：逐张 GST 1.30 + 1.30 = 2.60；IRD 按 $20 × 3/23 = 2.61
     expect(gstReturn([rec(1000), rec(1000)]).box12).toBe(261);

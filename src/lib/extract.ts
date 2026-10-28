@@ -4,6 +4,8 @@ import { toBase64 } from '../sync/github';
 import type { Locale } from './i18n';
 import type { Kind, PhotoKind } from '../data/types';
 import type { AiProvider } from './settings';
+import { gstFromTotalCents } from './money';
+import { knownCategoryNames } from './categories';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -34,9 +36,12 @@ export class ExtractError extends Error {
 }
 
 export interface Extraction {
-  merchant?: string;
+  merchant?: string; // 收入发票是客户名（billTo），支出是开票方
+  issuer?: string; // 开票方；切换收支时用来换回商家名
+  billTo?: string; // 票面上的客户（Bill To）
   date?: string; // YYYY-MM-DD
   totalCents?: number;
+  gstCents?: number; // 只在票面 GST 和 3/23 推算值不一样时给（不含 GST、混合票据）
   kind?: Kind;
   category?: string; // 命中现有分类（规范名）
   newCategory?: string; // 现有分类都不合适时，AI 提名的新分类（待加入）
@@ -56,6 +61,8 @@ interface RawExtraction {
   date?: unknown;
   dateText?: unknown;
   total?: unknown;
+  gst?: unknown;
+  billTo?: unknown;
   kind?: unknown;
   category?: unknown;
   items?: unknown;
@@ -69,6 +76,8 @@ const GEMINI_RESPONSE_SCHEMA = {
     date: { type: 'STRING', description: 'ISO date YYYY-MM-DD' },
     dateText: { type: 'STRING', description: 'the date exactly as printed on the receipt' },
     total: { type: 'NUMBER', description: 'total amount incl. GST in dollars' },
+    gst: { type: 'NUMBER', description: 'GST amount printed on the document, in dollars' },
+    billTo: { type: 'STRING', description: 'customer name under Bill To / Invoice To' },
     kind: { type: 'STRING', enum: ['expense', 'income'] },
     category: { type: 'STRING' },
     items: { type: 'ARRAY', items: { type: 'STRING' } },
@@ -95,6 +104,14 @@ const MISTRAL_RESPONSE_SCHEMA = {
       anyOf: [{ type: 'string' }, { type: 'null' }],
       description: 'final total including GST as a decimal dollar string, e.g. "57.80"',
     },
+    gst: {
+      anyOf: [{ type: 'string' }, { type: 'null' }],
+      description: 'GST amount printed on the document as a decimal dollar string, e.g. "7.54"',
+    },
+    billTo: {
+      anyOf: [{ type: 'string' }, { type: 'null' }],
+      description: 'customer name under Bill To / Invoice To',
+    },
     kind: {
       anyOf: [{ type: 'string', enum: ['expense', 'income'] }, { type: 'null' }],
     },
@@ -102,7 +119,18 @@ const MISTRAL_RESPONSE_SCHEMA = {
     items: { type: 'array', items: { type: 'string' }, maxItems: 12 },
     note: { anyOf: [{ type: 'string' }, { type: 'null' }] },
   },
-  required: ['merchant', 'date', 'dateText', 'total', 'kind', 'category', 'items', 'note'],
+  required: [
+    'merchant',
+    'date',
+    'dateText',
+    'total',
+    'gst',
+    'billTo',
+    'kind',
+    'category',
+    'items',
+    'note',
+  ],
 };
 
 function buildPrompt(
@@ -111,15 +139,19 @@ function buildPrompt(
   provider: AiProvider,
 ): string {
   const noteLang = locale === 'zh' ? 'Chinese' : 'English';
+  const listed = new Set([...categories.expense, ...categories.income]);
+  const standard = knownCategoryNames().filter((c) => !listed.has(c));
   return [
     'Extract structured data from this receipt or invoice (New Zealand context).',
     'Rules:',
-    '- merchant: the business name, cleaned up (no slogans/addresses).',
+    '- merchant: the name of the business that issued the document, cleaned up (no slogans/addresses).',
+    '- billTo: the customer name printed under "Bill To", "Invoice To" or "Customer", if any.',
     '- date: the transaction/invoice date as YYYY-MM-DD. New Zealand writes numeric dates DAY first: DD/MM/YYYY, DD/MM/YY, DD.MM.YYYY or DD-MM-YYYY. So 05/10/2026 is 5 October 2026, never May 10. Never read a numeric date in US month-first order. Two-digit years are 20YY.',
     '- dateText: the transaction/invoice date copied exactly as printed (digits, separators and month words unchanged, without the time).',
     '- total: the final total amount including GST, in dollars.',
+    '- gst: the total GST amount printed on the document. Use 0 when it explicitly says no GST is charged or the seller is not GST registered, and for government fines or infringement notices (they carry no GST). If GST is simply not shown, leave it unknown.',
     "- kind: 'expense' for receipts/bills the user paid; 'income' only if this is clearly an invoice the user issued to a client. Default 'expense'.",
-    `- category: strongly prefer the best match from the existing list. For expense: ${categories.expense.join(', ')}. For income: ${categories.income.join(', ')}. ONLY if none reasonably fits, output a NEW concise category name (1-3 English words, Title Case).`,
+    `- category: use the best match from the existing list. For expense: ${categories.expense.join(', ')}. For income: ${categories.income.join(', ')}. If none is a good match, use one of these standard names instead: ${standard.join(', ')}. A repair or maintenance service is Repairs, not Equipment. Only if nothing fits, output a NEW concise category name (1-3 English words, Title Case).`,
     '- items: the main line items/services as a list, each entry like "Name ×qty" (keep original product names, max 10 entries; merge trivial ones).',
     `- note: other useful info in ${noteLang}: invoice number if present, payment method if visible. Max 80 characters. Separate parts with " · ". Do NOT repeat the items here.`,
     'If multiple attachments are provided, they are photos/pages of the SAME single receipt or invoice — combine them into one record.',
@@ -277,25 +309,39 @@ function parsePrintedDate(text: unknown): string | undefined {
   return `${year}-${pad2(Number(dmy[2]))}-${pad2(Number(dmy[1]))}`;
 }
 
+// 金额可能是 JSON number，也可能是 "1,234.50" / "$7.54" 这样的字符串
+function parseDollars(v: unknown): number | null {
+  const n =
+    typeof v === 'number' ? v : typeof v === 'string' ? Number(v.replace(/[$,\s]/g, '')) : NaN;
+  return typeof v === 'string' && !v.trim() ? null : Number.isFinite(n) ? n : null;
+}
+
 function normalizeExtraction(raw: RawExtraction, categories: Record<Kind, string[]>): Extraction {
   const kind: Kind = raw.kind === 'income' ? 'income' : 'expense';
   const out: Extraction = {};
   if (typeof raw.merchant === 'string' && raw.merchant.trim()) {
-    out.merchant = raw.merchant.trim().slice(0, 120);
+    out.merchant = out.issuer = raw.merchant.trim().slice(0, 120);
   }
+  if (typeof raw.billTo === 'string' && raw.billTo.trim()) {
+    out.billTo = raw.billTo.trim().slice(0, 120);
+  }
+  // 自己开出的发票，开票方是自己的公司——商家记客户，不然每笔收入都显示成自己公司的名字
+  if (kind === 'income' && out.billTo) out.merchant = out.billTo;
   // 优先按 NZ 习惯（日在前）重新解析票面原文：模型偶尔会把 05/10 当成美式 5 月 10 日
   // 原文按日在前解析出不存在的日期（如海外单据 05/13/2026）时，退回模型给的 ISO 日期
   const printed = parsePrintedDate(raw.dateText);
   if (printed && isCalendarDate(printed)) out.date = printed;
   else if (typeof raw.date === 'string' && isCalendarDate(raw.date)) out.date = raw.date;
-  const total =
-    typeof raw.total === 'number'
-      ? raw.total
-      : typeof raw.total === 'string'
-        ? Number(raw.total.replace(/[$,\s]/g, ''))
-        : Number.NaN;
-  if (Number.isFinite(total) && total > 0 && total < 1_000_000) {
+  const total = parseDollars(raw.total);
+  if (total !== null && total > 0 && total < 1_000_000) {
     out.totalCents = Math.round(total * 100);
+  }
+  const gst = parseDollars(raw.gst);
+  if (out.totalCents !== undefined && gst !== null) {
+    const gstCents = Math.round(gst * 100);
+    const auto = gstFromTotalCents(out.totalCents);
+    // 差几分钱是四舍五入，照常按 3/23；比 3/23 还多说明读错了（例如读成了不含税小计）
+    if (gstCents >= 0 && gstCents < auto - 2) out.gstCents = gstCents;
   }
   if (raw.kind === 'income' || raw.kind === 'expense') out.kind = raw.kind;
   if (typeof raw.category === 'string' && raw.category.trim()) {
