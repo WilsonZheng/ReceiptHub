@@ -4,7 +4,8 @@ import { processFile, type ProcessedFile } from '../lib/image';
 import { clearDraft, emptyDraft, getDraft, isDraftDirty, setDraft } from '../lib/draft';
 import { holdBusyWhilePicking } from '../lib/busy';
 import { MAX_PDF_BYTES } from '../lib/image';
-import { localToday } from '../lib/dates';
+import { formatDate, localToday } from '../lib/dates';
+import { filedGstPeriodOf, nextOpenGstPeriod, useTaxStateVersion } from '../lib/taxState';
 import { formatNZD, gstFromTotalCents, parseNZD } from '../lib/money';
 import { extractReceipt, ExtractError } from '../lib/extract';
 import {
@@ -49,6 +50,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
   const [extracting, setExtracting] = useState(false);
   const t = useT();
   const locale = useLocale();
+  useTaxStateVersion(); // 税务页标了「已申报」后，下面的已报期提示要跟着变
 
   useEffect(() => {
     void db.receipts
@@ -463,6 +465,21 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         )}
 
         <DateField value={date} onChange={setDate} />
+        {space === 'company' && filedGstPeriodOf(date) && (
+          <div className="panel grid gap-2 px-3 py-2 text-sm">
+            <p style={{ color: 'var(--color-warning)' }}>{t('filedPeriodCapture')}</p>
+            <button
+              onClick={() => {
+                const original = `${t('originalDate')} ${formatDate(date, locale)}`;
+                setNote((n) => (n.trim() ? `${original} · ${n}` : original));
+                setDate(nextOpenGstPeriod(date).from);
+              }}
+              className="btn-secondary min-h-9 justify-self-start px-3 py-1 text-xs"
+            >
+              {t('moveToOpenPeriod')} {formatDate(nextOpenGstPeriod(date).from, locale)}
+            </button>
+          </div>
+        )}
         <input
           list="merchants"
           placeholder={t('merchant')}

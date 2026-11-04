@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 import { getDraft, isDraftDirty } from '../lib/draft';
 import { isBusy } from '../lib/busy';
+import { isSyncing } from '../sync/useSync';
 
 export type CheckResult = 'latest' | 'available' | 'unsupported' | 'error';
 
@@ -42,9 +43,12 @@ export function useAppUpdate() {
       apply();
       return;
     }
-    const onHide = () => {
-      if (document.visibilityState === 'hidden' && safeToReload()) void updateServiceWorker(true);
-    };
+    // 切到后台时同步也会趁机推送：等它的监听先跑（setTimeout 0），正在同步就这次不刷新，下次切走再套用
+    const onHide = () =>
+      setTimeout(() => {
+        if (document.visibilityState === 'hidden' && safeToReload() && !isSyncing())
+          void updateServiceWorker(true);
+      }, 0);
     document.addEventListener('visibilitychange', onHide);
     return () => document.removeEventListener('visibilitychange', onHide);
   }, [needRefresh]);

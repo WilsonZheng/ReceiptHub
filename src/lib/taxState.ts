@@ -3,6 +3,7 @@
 import { useSyncExternalStore } from 'react';
 import { getGstFrequency, setGstFrequency } from './settings';
 import type { TaxProfile } from './taxCalendar';
+import { periodAt, type Period } from './periods';
 
 const PROFILE_KEY = 'rh.tax.profile';
 const DONE_KEY = 'rh.tax.done';
@@ -94,4 +95,24 @@ export function ackCheck(id: string) {
   s.add(id);
   write(ACK_KEY, [...s]);
   emit();
+}
+
+/** 日期所在的 GST 期在税务页标了「已完成」（已经申报）时返回那一期，否则 null */
+export function filedGstPeriodOf(dateIso: string): Period | null {
+  const per = periodAt(dateIso, 'gst', getGstFrequency());
+  return getDoneTasks().has(`gst:${per.endYm}`) ? per : null;
+}
+
+/**
+ * 这一期之后第一个还没申报的 GST 期。已报期里补出来的开支记到这一期的第一天、原始日期写进备注
+ * ——和会计代记开支的做法一致：IRD 允许在之后的申报里补抵扣漏掉的进项。
+ */
+export function nextOpenGstPeriod(dateIso: string): Period {
+  const freq = getGstFrequency();
+  const done = getDoneTasks();
+  for (let k = 1; k < 48; k++) {
+    const per = periodAt(dateIso, 'gst', freq, k);
+    if (!done.has(`gst:${per.endYm}`)) return per;
+  }
+  return periodAt(dateIso, 'gst', freq, 1);
 }

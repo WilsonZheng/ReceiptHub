@@ -21,6 +21,7 @@ import { AddChip } from './components/AddChip';
 import { useLocale, useT } from '../lib/i18n';
 import { categoryLabel } from '../lib/categories';
 import { formatDate } from '../lib/dates';
+import { filedGstPeriodOf } from '../lib/taxState';
 import { DateField } from './components/DateField';
 import { kindOf, type Kind, type PhotoRef, type Receipt } from '../data/types';
 import { holdBusy, holdBusyWhilePicking } from '../lib/busy';
@@ -522,6 +523,11 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
           </>
         ) : (
           <>
+            {isCompany && (filedGstPeriodOf(receipt.date) || filedGstPeriodOf(date)) && (
+              <p className="panel px-3 py-2 text-sm" style={{ color: 'var(--color-warning)' }}>
+                {t('filedPeriodEdit')}
+              </p>
+            )}
             <Labeled label={t('date')}>
               <DateField value={date} onChange={setDate} />
             </Labeled>

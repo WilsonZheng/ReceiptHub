@@ -138,6 +138,12 @@ const en = {
   exGst: 'excl. GST',
   gstAuto: 'GST auto',
   gstAsPrinted: 'as printed',
+  filedPeriodCapture:
+    "GST for this date's period has already been filed. Recorded on this date, the app's numbers for that period will no longer match the return. A late receipt can be claimed in the current period instead, with the original date kept in the note.",
+  moveToOpenPeriod: 'Record on',
+  originalDate: 'Original date',
+  filedPeriodEdit:
+    "GST for this period has already been filed. Changing the amount, GST, income/expense or date will make the app's numbers differ from the filed return.",
   date: 'Date',
   today: 'Today',
   aiExtract: 'AI fill',
@@ -412,6 +418,12 @@ const zh: Record<MsgKey, string> = {
   exGst: '不含 GST',
   gstAuto: 'GST 自动',
   gstAsPrinted: '按票面',
+  filedPeriodCapture:
+    '这个日期所在的那一期 GST 已经申报了。记在这一天，App 里那一期的数字会和已报的对不上。补记的票可以改记到当前申报期，原始日期写进备注。',
+  moveToOpenPeriod: '改记到',
+  originalDate: '原始日期',
+  filedPeriodEdit:
+    '这一期 GST 已经申报了。改金额、GST、收支类型或日期，App 里的数字会和已报的对不上。',
   date: '日期',
   today: '今天',
   aiExtract: 'AI 识别填表',

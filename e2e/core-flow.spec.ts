@@ -375,6 +375,61 @@ test('AI fill reuses your past spelling and category, the printed GST, and the c
   await expect(merchant).toHaveValue('FASTBOLT LIMITED');
 });
 
+test('saving a receipt pushes it right away instead of waiting for the next minute', async ({
+  page,
+}) => {
+  await expect(page.getByRole('status')).toBeVisible(); // 解锁后的首次同步
+  const pushed = page.waitForRequest(
+    (r) => r.method() === 'PUT' && /contents\/company\/\d{4}-\d{2}\.json/.test(r.url()),
+    { timeout: 5000 },
+  );
+  await addReceipt(page, 'Quick Sync Cafe', '12.00', 'Other');
+  await pushed;
+});
+
+test('a receipt dated in a filed GST period can move to the open period', async ({ page }) => {
+  await page.route('https://api.mistral.ai/v1/chat/completions', (route) =>
+    route.fulfill({
+      json: {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                merchant: 'Late Receipt Ltd',
+                date: '2026-08-30',
+                total: '23.00',
+                note: 'INV-9',
+              }),
+            },
+          },
+        ],
+      },
+    }),
+  );
+  await page.evaluate(() => {
+    localStorage.setItem('rh.ai.provider', 'mistral');
+    localStorage.setItem('rh.mistral', 'test-ai-key');
+    localStorage.setItem('rh.tax.done', JSON.stringify(['gst:2026-09'])); // 4–9 月已申报
+  });
+  await page.reload();
+  const chooserPromise = page.waitForEvent('filechooser');
+  await page.getByText('Upload from library').click();
+  await (
+    await chooserPromise
+  ).setFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: PNG });
+  await page.getByRole('button', { name: 'AI fill' }).click();
+
+  await expect(page.getByText(/already been filed/)).toBeVisible();
+  await page.getByRole('button', { name: 'Record on 1 Oct 2026' }).click();
+  await expect(page.getByText(/already been filed/)).not.toBeVisible();
+  await expect(page.getByRole('button', { name: /^Date: / })).toHaveAccessibleName(
+    'Date: 1 Oct 2026',
+  );
+  await expect(page.getByPlaceholder('Note (optional)')).toHaveValue(
+    'Original date 30 Aug 2026 · INV-9',
+  );
+});
+
 test('AI provider settings keep separate Mistral/Gemini keys and legacy Gemini users', async ({
   page,
 }) => {

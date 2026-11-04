@@ -152,7 +152,7 @@ function buildPrompt(
     '- gst: the total GST amount printed on the document. Use 0 when it explicitly says no GST is charged or the seller is not GST registered, and for government fines or infringement notices (they carry no GST). If GST is simply not shown, leave it unknown.',
     "- kind: 'expense' for receipts/bills the user paid; 'income' only if this is clearly an invoice the user issued to a client. Default 'expense'.",
     `- category: use the best match from the existing list. For expense: ${categories.expense.join(', ')}. For income: ${categories.income.join(', ')}. If none is a good match, use one of these standard names instead: ${standard.join(', ')}. A repair or maintenance service is Repairs, not Equipment. Only if nothing fits, output a NEW concise category name (1-3 English words, Title Case).`,
-    '- items: the main line items/services as a list, each entry like "Name ×qty" (keep original product names, max 10 entries; merge trivial ones).',
+    '- items: the main line items/services as a list, each entry like "Name ×qty" (keep original product names in any language, e.g. Chinese dish names, max 10 entries; merge trivial ones). If the quantity column is hard to read, qty = line amount ÷ unit price. A receipt with a single line still has one item.',
     `- note: other useful info in ${noteLang}: invoice number if present, payment method if visible. Max 80 characters. Separate parts with " · ". Do NOT repeat the items here.`,
     'If multiple attachments are provided, they are photos/pages of the SAME single receipt or invoice — combine them into one record.',
     provider === 'mistral'
