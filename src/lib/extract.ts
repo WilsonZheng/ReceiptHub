@@ -5,7 +5,7 @@ import type { Locale } from './i18n';
 import type { Kind, PhotoKind } from '../data/types';
 import type { AiProvider } from './settings';
 import { gstFromTotalCents } from './money';
-import { knownCategoryNames } from './categories';
+import { isIncomeOnlyCategory, knownCategoryNames } from './categories';
 
 const GEMINI_MODEL = 'gemini-2.5-flash';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -139,8 +139,12 @@ function buildPrompt(
   provider: AiProvider,
 ): string {
   const noteLang = locale === 'zh' ? 'Chinese' : 'English';
-  const listed = new Set([...categories.expense, ...categories.income]);
-  const standard = knownCategoryNames().filter((c) => !listed.has(c));
+  // 支出列表里混进的收入分类（以前同步收进来的 Services）不给 AI 看
+  const expense = categories.expense.filter((c) => !isIncomeOnlyCategory(c));
+  const standard = (kind: Kind, listed: string[]) =>
+    knownCategoryNames(kind)
+      .filter((c) => !listed.includes(c))
+      .join(', ');
   return [
     'Extract structured data from this receipt or invoice (New Zealand context).',
     'Rules:',
@@ -151,7 +155,7 @@ function buildPrompt(
     '- total: the final total amount including GST, in dollars.',
     '- gst: the total GST amount printed on the document. Use 0 when it explicitly says no GST is charged or the seller is not GST registered, and for government fines or infringement notices (they carry no GST). If GST is simply not shown, leave it unknown.',
     "- kind: 'expense' for receipts/bills the user paid; 'income' only if this is clearly an invoice the user issued to a client. Default 'expense'.",
-    `- category: use the best match from the existing list. For expense: ${categories.expense.join(', ')}. For income: ${categories.income.join(', ')}. If none is a good match, use one of these standard names instead: ${standard.join(', ')}. A repair or maintenance service is Repairs, not Equipment. Only if nothing fits, output a NEW concise category name (1-3 English words, Title Case).`,
+    `- category: use the best match from the existing list for the kind. For expense: ${expense.join(', ')}; if none is a good match, one of these standard names: ${standard('expense', expense)}. For income: ${categories.income.join(', ')}; if none is a good match, one of: ${standard('income', categories.income)}. Never give an expense an income category such as Services or Sales: a service the user paid for (design, consulting, legal) is Professional Fees unless a closer one fits, and a repair or maintenance service is Repairs, not Equipment. Only if nothing fits, output a NEW concise category name (1-3 English words, Title Case).`,
     '- items: the main line items/services as a list, each entry like "Name ×qty" (keep original product names in any language, e.g. Chinese dish names, max 10 entries; merge trivial ones). If the quantity column is hard to read, qty = line amount ÷ unit price. A receipt with a single line still has one item.',
     `- note: other useful info in ${noteLang}: invoice number if present, payment method if visible. Max 80 characters. Separate parts with " · ". Do NOT repeat the items here.`,
     'If multiple attachments are provided, they are photos/pages of the SAME single receipt or invoice — combine them into one record.',
@@ -316,6 +320,31 @@ function parseDollars(v: unknown): number | null {
   return typeof v === 'string' && !v.trim() ? null : Number.isFinite(n) ? n : null;
 }
 
+const QTY_ONLY = /^[×x]\s*(\d+(?:\.\d+)?)$/i; // "×1"
+const QTY_AT_PRICE = /(?:^|\s)(\d+(?:\.\d+)?)\s*@\s*\$?\d[\d,.]*$/; // "1 @ $12.69"
+const HAS_QTY = /×\s*\d/;
+
+/**
+ * 模型偶尔把票面一行拆成几项：["LG M/WAVE", "×1"]、["SPARK PLUG", "130940", "1 @ $12.69"]。
+ * 单独的数量并回上一项，纯数字的商品编号丢掉，"数量 @ 单价" 改写成 "×数量"。
+ */
+function joinItemLines(lines: string[]): string[] {
+  const out: string[] = [];
+  for (const line of lines.map((x) => x.replace(/\s+/g, ' ').trim())) {
+    if (/^\d+$/.test(line)) continue;
+    const at = QTY_AT_PRICE.exec(line);
+    const qty =
+      QTY_ONLY.exec(line)?.[1] ?? (at && line.slice(0, at.index).trim() === '' ? at[1] : undefined);
+    if (qty !== undefined) {
+      const prev = out.length - 1;
+      if (prev >= 0 && !HAS_QTY.test(out[prev])) out[prev] = `${out[prev]} ×${qty}`;
+      continue;
+    }
+    out.push(at ? `${line.slice(0, at.index).trim()} ×${at[1]}` : line);
+  }
+  return out;
+}
+
 function normalizeExtraction(raw: RawExtraction, categories: Record<Kind, string[]>): Extraction {
   const kind: Kind = raw.kind === 'income' ? 'income' : 'expense';
   const out: Extraction = {};
@@ -344,21 +373,26 @@ function normalizeExtraction(raw: RawExtraction, categories: Record<Kind, string
     if (gstCents >= 0 && gstCents < auto - 2) out.gstCents = gstCents;
   }
   if (raw.kind === 'income' || raw.kind === 'expense') out.kind = raw.kind;
-  if (typeof raw.category === 'string' && raw.category.trim()) {
+  if (
+    typeof raw.category === 'string' &&
+    raw.category.trim() &&
+    !(kind === 'expense' && isIncomeOnlyCategory(raw.category))
+  ) {
     const name = raw.category.trim();
     const hit = categories[kind].find((c) => c.toLowerCase() === name.toLowerCase());
     if (hit) out.category = hit;
     else if (name.length <= 30) out.newCategory = name;
   }
   if (Array.isArray(raw.items)) {
-    const items = raw.items
-      .filter((x): x is string => typeof x === 'string' && !!x.trim())
-      .map((x) => x.trim().slice(0, 60))
+    const items = joinItemLines(
+      raw.items.filter((x): x is string => typeof x === 'string' && !!x.trim()),
+    )
+      .map((x) => x.slice(0, 60))
       .slice(0, 12);
     if (items.length) out.items = items;
   }
   if (typeof raw.note === 'string' && raw.note.trim()) {
-    out.note = raw.note.trim().slice(0, 200);
+    out.note = raw.note.replace(/\s+/g, ' ').trim().slice(0, 200);
   }
   return out;
 }

@@ -381,6 +381,43 @@ describe('extractReceipt', () => {
     expect(prompt).toMatch(/billTo/);
   });
 
+  it('never files an expense under an income category', async () => {
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        mistralReply({ merchant: 'Archifors', kind: 'expense', category: 'Services' }),
+      );
+    const r = await extractReceipt([file], MISTRAL_OPTS);
+    expect(r.category).toBeUndefined();
+    expect(r.newCategory).toBeUndefined();
+    const prompt = String(spy.mock.calls[0][1]?.body);
+    expect(prompt).toContain('Professional Fees');
+    const expensePart = /For expense:(.*?)For income:/.exec(prompt)?.[1] ?? '';
+    expect(expensePart).toContain('Repairs');
+    expect(expensePart).not.toMatch(/\bServices\b|\bSales\b|\bSalary\b/);
+  });
+
+  it('joins item lines the model split apart and drops bare product codes', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      mistralReply({
+        merchant: 'X',
+        items: [
+          'SPARK PLUG C132',
+          '130940',
+          '1 @ $12.69',
+          'LG M/WAVE',
+          '×1',
+          'CARE PLAN ×1',
+          'Bolt 2 @ $1.50',
+        ],
+        note: 'Invoice No CO15326290 \n· Credit Card',
+      }),
+    );
+    const r = await extractReceipt([file], MISTRAL_OPTS);
+    expect(r.items).toEqual(['SPARK PLUG C132 ×1', 'LG M/WAVE ×1', 'CARE PLAN ×1', 'Bolt ×2']);
+    expect(r.note).toBe('Invoice No CO15326290 · Credit Card');
+  });
+
   it('unknown category becomes a proposal and invalid date is dropped', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       geminiReply({ merchant: 'X', date: 'last tuesday', total: 10, category: 'Pet Supplies' }),

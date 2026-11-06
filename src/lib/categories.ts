@@ -1,5 +1,5 @@
 import type { Locale } from './i18n';
-import type { CategoryLabels } from '../data/types';
+import type { CategoryLabels, Kind } from '../data/types';
 
 // 分类的存储值恒为英文规范名（数据稳定、CSV 对会计友好），中文只在显示层翻译。
 // 表里收的是默认分类 + 记账常用分类；不在表内的自建分类 → 用用户在设置里填的双语译名，否则原样显示。
@@ -38,6 +38,7 @@ const ZH: Record<string, string> = {
   Rates: '地税',
   'Bank Fees': '银行手续费',
   'Accounting Fees': '会计费',
+  'Professional Fees': '专业服务费',
   'Legal Fees': '律师费',
   Advertising: '广告推广',
   Subscriptions: '订阅',
@@ -72,6 +73,10 @@ const EXTRA_ALIASES: Record<string, string> = {
   Software: 'Software & SaaS',
   Supplies: 'Office Supplies',
   'Car Maintenance': 'Vehicle Maintenance',
+  'Consulting Fees': 'Professional Fees',
+  'Design Fees': 'Professional Fees',
+  咨询费: 'Professional Fees',
+  设计费: 'Professional Fees',
 };
 
 const ALIASES = new Map<string, string>();
@@ -92,8 +97,23 @@ export function isKnownCategory(name: string): boolean {
   return canonicalCategoryName(name) in ZH;
 }
 
-// 字典里所有自带中英文的分类名：AI 提名新分类时优先从这里挑，挑中的自动有中文
-export const knownCategoryNames = (): string[] => Object.keys(ZH);
+// 只用于收入的分类：支出不能归到这里（AI 曾把付给会计、设计公司的钱记成 Services）
+const INCOME_ONLY = new Set([
+  'Sales',
+  'Services',
+  'Interest',
+  'Salary',
+  'Refunds',
+  'Dividends',
+  'Grants',
+]);
+
+export const isIncomeOnlyCategory = (name: string): boolean =>
+  INCOME_ONLY.has(canonicalCategoryName(name));
+
+// 字典里这一收支类型自带中英文的分类名：AI 提名新分类时优先从这里挑，挑中的自动有中文
+export const knownCategoryNames = (kind: Kind): string[] =>
+  Object.keys(ZH).filter((c) => c === 'Other' || INCOME_ONLY.has(c) === (kind === 'income'));
 
 /**
  * 分类的显示名。优先级：用户在设置里填的 locale 译名 → 内置中英字典 → 原样 key。

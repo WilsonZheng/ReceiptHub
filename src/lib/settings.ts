@@ -6,7 +6,7 @@ import {
   type Receipt,
   type Space,
 } from '../data/types';
-import { canonicalCategoryName } from './categories';
+import { canonicalCategoryName, isIncomeOnlyCategory } from './categories';
 import type { Locale } from './i18n';
 import type { GstFrequency } from './periods';
 
@@ -85,13 +85,19 @@ function normalizeCategories(cfg: AppConfig): AppConfig {
     }
     return out;
   };
+  // 收入专用分类不留在支出列表里（以前 AI 把服务费记成 Services，又被同步收进了支出列表）
+  const fixExpense = (list: string[]) => {
+    const out = fix(list).filter((c) => !isIncomeOnlyCategory(c));
+    if (out.length !== list.length) changed = true;
+    return out;
+  };
   const categories = {
     company: {
-      expense: fix(cfg.categories.company.expense),
+      expense: fixExpense(cfg.categories.company.expense),
       income: fix(cfg.categories.company.income),
     },
     personal: {
-      expense: fix(cfg.categories.personal.expense),
+      expense: fixExpense(cfg.categories.personal.expense),
       income: fix(cfg.categories.personal.income),
     },
   };
@@ -128,6 +134,7 @@ export function adoptUsedCategories(receipts: Receipt[]): void {
     if (r.deleted || !r.category) continue;
     const kind: Kind = r.kind ?? 'expense';
     const name = canonicalCategoryName(r.category);
+    if (kind === 'expense' && isIncomeOnlyCategory(name)) continue;
     const key = `${r.space}|${kind}|${name}`;
     if (seenSet.has(key)) continue;
     seenSet.add(key);

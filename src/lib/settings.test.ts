@@ -60,6 +60,18 @@ describe('category config', () => {
     expect(getConfig().categories.company.expense).not.toContain('Tools');
   });
 
+  it('keeps income-only categories out of expense lists', () => {
+    // AI 曾把付给设计公司、会计的服务费归到收入分类 Services，同步时又被收进了支出列表
+    const cfg = structuredClone(DEFAULT_CONFIG);
+    cfg.categories.company.expense.push('Services', 'Repairs');
+    setConfig(cfg);
+    expect(getConfig().categories.company.expense).not.toContain('Services');
+    expect(getConfig().categories.company.expense).toContain('Repairs');
+    expect(getConfig().categories.company.income).toContain('Services');
+    adoptUsedCategories([rec('company', 'Services')]);
+    expect(getConfig().categories.company.expense).not.toContain('Services');
+  });
+
   it('ignores deleted records when adopting', () => {
     adoptUsedCategories([{ ...rec('company', 'Ghost'), deleted: true }]);
     expect(getConfig().categories.company.expense).not.toContain('Ghost');
