@@ -418,6 +418,17 @@ describe('extractReceipt', () => {
     expect(r.note).toBe('Invoice No CO15326290 · Credit Card');
   });
 
+  it('an EFTPOS slip has no items: the transaction type is not an item', async () => {
+    const spy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(mistralReply({ merchant: 'Barbeque Supreme', items: ['Purchase ×1'] }));
+    const r = await extractReceipt([file], MISTRAL_OPTS);
+    expect(r.items).toBeUndefined();
+    const prompt = String(spy.mock.calls[0][1]?.body);
+    expect(prompt).toContain('Government Fees');
+    expect(prompt).toMatch(/EFTPOS/);
+  });
+
   it('unknown category becomes a proposal and invalid date is dropped', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(
       geminiReply({ merchant: 'X', date: 'last tuesday', total: 10, category: 'Pet Supplies' }),

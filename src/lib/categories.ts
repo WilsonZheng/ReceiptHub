@@ -39,6 +39,7 @@ const ZH: Record<string, string> = {
   'Bank Fees': '银行手续费',
   'Accounting Fees': '会计费',
   'Professional Fees': '专业服务费',
+  'Government Fees': '政府规费',
   'Legal Fees': '律师费',
   Advertising: '广告推广',
   Subscriptions: '订阅',
@@ -77,6 +78,10 @@ const EXTRA_ALIASES: Record<string, string> = {
   'Design Fees': 'Professional Fees',
   咨询费: 'Professional Fees',
   设计费: 'Professional Fees',
+  政府: 'Government Fees',
+  政府费用: 'Government Fees',
+  Government: 'Government Fees',
+  'Government Levies': 'Government Fees',
 };
 
 const ALIASES = new Map<string, string>();

@@ -97,8 +97,8 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 - **票面 GST**：schema 另要 `gst`。比 3/23 少 2 分以上才用票面值（`gstCents`）：卖方没注册 GST、政府罚款（给 0），混合票据（买车发票里注册费不含 GST）给票面数；差几分是四舍五入照常自动；比 3/23 还多是读错了，丢弃。详情页编辑保留这个值（`gstOverride`），改金额才回到 3/23。
 - **按历史纠正**（`lib/merchants.ts`）：AI 读出的商家以前记过（忽略大小写、空格、标点）就沿用当时的写法；同一空间同一收支里这家商家上次用的分类优先于 AI 猜的分类；手填商家失焦时也会带出上次的分类。
 - **已申报的 GST 期是既定事实**：税务页把某期 GST 标了「已完成」，就当它已经报掉。拍照页日期落在已报期（公司空间）时提示，并可一键「改记到」下一个未申报期的第一天、原始日期写进备注（`nextOpenGstPeriod`，和会计代记开支同一做法）；详情页编辑已报期的票据时提示改金额/GST/日期会和已报的对不上。数据仓库里已报期的数字不要再改（Tesla 发票票面 GST 比已报的少 $72.66，用户决定按已报的记）。
-- prompt 把字典里的双语分类名**按收支分开**列给 AI 作为"现有列表都不合适时"的首选新分类（挑中的自动有中文），并写明维修服务是 Repairs 不是 Equipment、付出去的设计/咨询/律师服务是 Professional Fees。**收入专用分类**（`isIncomeOnlyCategory`：Sales、Services、Interest、Salary、Refunds、Dividends、Grants）不会落到支出上：AI 给支出返回这类分类直接丢弃，配置读出时从支出列表里清掉，同步收分类时也跳过（以前 AI 三次把付给会计、维修工、设计公司的钱记成 Services，又被收进支出列表，越错越多）。
-- items 清洗（`joinItemLines`）：模型把一行拆成 `["LG M/WAVE", "×1"]` 或 `["SPARK PLUG", "130940", "1 @ $12.69"]` 时，数量并回上一项、纯数字编号丢掉；note 里的换行压成空格。
+- prompt 把字典里的双语分类名**按收支分开**列给 AI 作为"现有列表都不合适时"的首选新分类（挑中的自动有中文），并写明维修服务是 Repairs 不是 Equipment、付出去的设计/咨询/律师服务是 Professional Fees、政府规费/公司年审是 Government Fees（用户手动建过中文分类「政府」，现在是 Government Fees 的别名）。**收入专用分类**（`isIncomeOnlyCategory`：Sales、Services、Interest、Salary、Refunds、Dividends、Grants）不会落到支出上：AI 给支出返回这类分类直接丢弃，配置读出时从支出列表里清掉，同步收分类时也跳过（以前 AI 三次把付给会计、维修工、设计公司的钱记成 Services，又被收进支出列表，越错越多）。
+- items 清洗（`joinItemLines`）：模型把一行拆成 `["LG M/WAVE", "×1"]` 或 `["SPARK PLUG", "130940", "1 @ $12.69"]` 时，数量并回上一项、纯数字编号丢掉；只有交易类型的 EFTPOS 小票（`Purchase ×1`）没有明细；note 里的换行压成空格，prompt 要求 note 不写 GST 号。
 - 两条路径共享结构化校验：日期正则（并校验是真实存在的日历日期）、金额限幅、分类大小写归并或限长提名、items/note 截断；数字字符串金额也可容错解析。
 - 429、408/425、5xx 和浏览器网络故障最多重试 3 次并尊重 `Retry-After`（最长等 10 秒）。错误分为 key / 限流 / 网络 / 文件请求 / 空识别 / 解析；**2xx 无内容不许再静默返回 `{}`**，错误响应也必须把服务端原话带进 `ExtractError.detail` 并显示出来。
 - **浏览器读不到 Mistral 的限流头**：它的响应只有 `access-control-allow-origin: *`，没有 `Access-Control-Expose-Headers`，所以 `x-ratelimit-*` 和 `Retry-After` 在 fetch 里一律是 `null`——`retryDelay` 的 `Retry-After` 分支实际只在 curl/服务端场景生效，浏览器里永远走固定退避。响应体是唯一能读到的线索。

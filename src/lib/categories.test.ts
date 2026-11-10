@@ -53,6 +53,7 @@ describe('common categories are bilingual', () => {
     ['Rent', '房租'],
     ['Bank Fees', '银行手续费'],
     ['Accounting Fees', '会计费'],
+    ['Government Fees', '政府规费'],
   ])('%s shows as %s in zh', (en, zh) => {
     expect(categoryLabel(en, 'zh')).toBe(zh);
     expect(categoryLabel(en, 'en')).toBe(en);
@@ -64,6 +65,8 @@ describe('canonicalCategoryName', () => {
     expect(canonicalCategoryName('保险')).toBe('Insurance');
     expect(canonicalCategoryName('车维护')).toBe('Vehicle Maintenance');
     expect(canonicalCategoryName('汽车维护')).toBe('Vehicle Maintenance');
+    // 用户给公司年审费手动建过「政府」分类
+    expect(canonicalCategoryName('政府')).toBe('Government Fees');
     expect(canonicalCategoryName(' 电器 ')).toBe('Appliances');
     expect(canonicalCategoryName('fuel')).toBe('Fuel');
     expect(canonicalCategoryName('油费')).toBe('Fuel');

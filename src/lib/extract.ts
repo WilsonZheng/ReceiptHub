@@ -155,9 +155,9 @@ function buildPrompt(
     '- total: the final total amount including GST, in dollars.',
     '- gst: the total GST amount printed on the document. Use 0 when it explicitly says no GST is charged or the seller is not GST registered, and for government fines or infringement notices (they carry no GST). If GST is simply not shown, leave it unknown.',
     "- kind: 'expense' for receipts/bills the user paid; 'income' only if this is clearly an invoice the user issued to a client. Default 'expense'.",
-    `- category: use the best match from the existing list for the kind. For expense: ${expense.join(', ')}; if none is a good match, one of these standard names: ${standard('expense', expense)}. For income: ${categories.income.join(', ')}; if none is a good match, one of: ${standard('income', categories.income)}. Never give an expense an income category such as Services or Sales: a service the user paid for (design, consulting, legal) is Professional Fees unless a closer one fits, and a repair or maintenance service is Repairs, not Equipment. Only if nothing fits, output a NEW concise category name (1-3 English words, Title Case).`,
-    '- items: the main line items/services as a list, each entry like "Name ×qty" (keep original product names in any language, e.g. Chinese dish names, max 10 entries; merge trivial ones). If the quantity column is hard to read, qty = line amount ÷ unit price. A receipt with a single line still has one item.',
-    `- note: other useful info in ${noteLang}: invoice number if present, payment method if visible. Max 80 characters. Separate parts with " · ". Do NOT repeat the items here.`,
+    `- category: use the best match from the existing list for the kind. For expense: ${expense.join(', ')}; if none is a good match, one of these standard names: ${standard('expense', expense)}. For income: ${categories.income.join(', ')}; if none is a good match, one of: ${standard('income', categories.income)}. Never give an expense an income category such as Services or Sales: a service the user paid for (design, consulting, legal) is Professional Fees unless a closer one fits, and a repair or maintenance service is Repairs, not Equipment, and government levies, the company annual return and registration fees are Government Fees. Only if nothing fits, output a NEW concise category name (1-3 English words, Title Case).`,
+    '- items: the main line items/services as a list, each entry like "Name ×qty" (keep original product names in any language, e.g. Chinese dish names, max 10 entries; merge trivial ones). If the quantity column is hard to read, qty = line amount ÷ unit price. A receipt with a single line still has one item. An EFTPOS/card terminal slip that lists no products has no items: Purchase, Sale or EFTPOS is the transaction type, not an item, so return [].',
+    `- note: other useful info in ${noteLang}: invoice number if present, payment method if visible (not the GST number). Max 80 characters. Separate parts with " · ". Do NOT repeat the items here.`,
     'If multiple attachments are provided, they are photos/pages of the SAME single receipt or invoice — combine them into one record.',
     provider === 'mistral'
       ? 'Return total as a decimal string. Use null for any other unknown field and [] for unknown items.'
@@ -323,6 +323,8 @@ function parseDollars(v: unknown): number | null {
 const QTY_ONLY = /^[×x]\s*(\d+(?:\.\d+)?)$/i; // "×1"
 const QTY_AT_PRICE = /(?:^|\s)(\d+(?:\.\d+)?)\s*@\s*\$?\d[\d,.]*$/; // "1 @ $12.69"
 const HAS_QTY = /×\s*\d/;
+// 只有交易类型、没有商品的 EFTPOS 小票，模型会把 "Purchase" 当成一项
+const TRANSACTION_TYPE = /^(purchase|sale|eftpos|payment|card payment)(\s*×\s*1)?$/i;
 
 /**
  * 模型偶尔把票面一行拆成几项：["LG M/WAVE", "×1"]、["SPARK PLUG", "130940", "1 @ $12.69"]。
@@ -331,7 +333,7 @@ const HAS_QTY = /×\s*\d/;
 function joinItemLines(lines: string[]): string[] {
   const out: string[] = [];
   for (const line of lines.map((x) => x.replace(/\s+/g, ' ').trim())) {
-    if (/^\d+$/.test(line)) continue;
+    if (/^\d+$/.test(line) || TRANSACTION_TYPE.test(line)) continue;
     const at = QTY_AT_PRICE.exec(line);
     const qty =
       QTY_ONLY.exec(line)?.[1] ?? (at && line.slice(0, at.index).trim() === '' ? at[1] : undefined);
