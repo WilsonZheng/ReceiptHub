@@ -1,4 +1,5 @@
-import { kindOf, type Receipt } from '../data/types';
+import { kindOf, type Kind, type Receipt, type Space } from '../data/types';
+import { merchantKey } from './merchants';
 
 /** 规则检查（不用 AI）：报税前值得再看一眼的票据 */
 export type CheckKind = 'duplicate' | 'noGst' | 'bigInvoice';
@@ -36,4 +37,22 @@ export function receiptChecks(receipts: Receipt[], fromIso: string): Check[] {
   }
   const order: CheckKind[] = ['duplicate', 'noGst', 'bigInvoice'];
   return out.sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
+}
+
+/** 录入时就提醒：同一空间、同一收支、同一天、同金额、同一家商家已经记过一张（商家名忽略大小写和标点） */
+export function findDuplicate(
+  receipts: Receipt[],
+  draft: { space: Space; kind: Kind; date: string; totalCents: number; merchant: string },
+): Receipt | undefined {
+  const key = merchantKey(draft.merchant);
+  if (!key) return undefined;
+  return receipts.find(
+    (r) =>
+      !r.deleted &&
+      r.space === draft.space &&
+      kindOf(r) === draft.kind &&
+      r.date === draft.date &&
+      r.totalCents === draft.totalCents &&
+      merchantKey(r.merchant) === key,
+  );
 }

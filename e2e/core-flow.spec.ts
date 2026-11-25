@@ -12,6 +12,11 @@ async function mockGithub(page: Page) {
     const url = new URL(route.request().url());
     const m = url.pathname.match(/\/contents\/(.+)$/);
     const path = m ? decodeURIComponent(m[1]) : '';
+    // 解锁时的权限检查（GET /repos/<owner>/<name>）：测试密码以外的都当作无效
+    if (!m) {
+      const ok = route.request().headers()['authorization'] === 'Bearer github_pat_test';
+      return route.fulfill(ok ? { json: { id: 1 } } : { status: 401, json: {} });
+    }
     if (route.request().method() === 'GET') {
       const f = store.get(path);
       if (f) return route.fulfill({ json: { content: f.content, sha: String(f.sha), path } });
@@ -125,8 +130,20 @@ test('offline capture queues, sync drains outbox when online', async ({ page, co
 test('lock screen shows only a password box and leaks no auth mechanism', async ({ page }) => {
   await openMore(page, 'Settings');
   await page.getByRole('button', { name: 'Clear credentials & lock' }).click();
+  // 就地确认：先问一句，取消就留在设置页
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await expect(page.getByPlaceholder('Password')).not.toBeVisible();
+  await page.getByRole('button', { name: 'Clear credentials & lock' }).click();
+  await page.getByRole('button', { name: 'Lock', exact: true }).click();
   await expect(page.getByPlaceholder('Password')).toBeVisible();
   // 锁屏不得泄露认证机制（GitHub/PAT/token/数据仓库名）
+  await expect(page.locator('body')).not.toContainText(
+    /github|fine-grained|token|PAT|ReceiptHub-data/i,
+  );
+  // 输错密码当场说，不放行，提示里同样不泄露机制
+  await page.getByPlaceholder('Password').fill('not-the-password');
+  await page.getByRole('button', { name: 'Unlock' }).click();
+  await expect(page.getByRole('alert')).toContainText("didn't work");
   await expect(page.locator('body')).not.toContainText(
     /github|fine-grained|token|PAT|ReceiptHub-data/i,
   );
@@ -178,7 +195,7 @@ test('income entry: own categories, + in list, gst nets off in export', async ({
   // Export：进销项相抵，净额 = 30 - 15 = 15
   await openMore(page, 'Export');
   await expect(page.getByText('Income (1)')).toBeVisible();
-  await expect(page.getByText(/Net GST \$15\.00/)).toBeVisible();
+  await expect(page.getByText(/GST to pay IRD \$15\.00/)).toBeVisible();
 
   // CSV 含 Kind 列
   const downloadPromise = page.waitForEvent('download');
@@ -378,7 +395,7 @@ test('AI fill reuses your past spelling and category, the printed GST, and the c
 test('saving a receipt pushes it right away instead of waiting for the next minute', async ({
   page,
 }) => {
-  await expect(page.getByRole('status')).toBeVisible(); // 解锁后的首次同步
+  await expect(page.getByTitle(/^sync/)).toBeVisible(); // 解锁后的首次同步
   const pushed = page.waitForRequest(
     (r) => r.method() === 'PUT' && /contents\/company\/\d{4}-\d{2}\.json/.test(r.url()),
     { timeout: 5000 },
@@ -489,9 +506,14 @@ test('capture thumbnail opens fullscreen preview', async ({ page }) => {
     await chooserPromise
   ).setFiles({ name: 'receipt.png', mimeType: 'image/png', buffer: PNG });
   await page.getByRole('button', { name: 'Preview photo' }).click(); // 点缩略图
-  const overlay = page.locator('.fixed.inset-0.z-50');
+  const overlay = page.locator('.photo-viewer');
   await expect(overlay).toBeVisible();
-  await overlay.click(); // 点任意处关闭
+  // 点照片放大（看小字），再点缩回；✕ 关闭
+  await overlay.locator('img').click();
+  await expect(page.getByText('Tap again to zoom out')).toBeVisible();
+  await overlay.locator('img').click();
+  await expect(page.getByText('Tap the photo to zoom in')).toBeVisible();
+  await overlay.getByRole('button', { name: 'Dismiss' }).click();
   await expect(overlay).not.toBeVisible();
 });
 
@@ -768,4 +790,54 @@ test('expense without a receipt is flagged, filterable, and can get a PDF attach
   await expect(page.getByText(/missing a receipt/)).not.toBeVisible();
   await expect(page.getByText('· No original')).toHaveCount(0);
   await expect(page.getByText('Bunnings')).toBeVisible(); // 补完最后一张自动回到全部
+});
+
+test('entering the same receipt twice warns before saving; search finds text inside a name', async ({
+  page,
+}) => {
+  await addReceipt(page, '奥克兰五金超市', '45.00', 'Equipment');
+  await expect(page.getByText('Saved · -$45.00')).toBeVisible(); // 保存后的一句话反馈
+  await expect(page.getByText('奥克兰五金超市')).toBeVisible();
+
+  // 中文没有空格可分词：搜名字中间的两个字也要搜得到
+  await page.getByPlaceholder(/Search merchant/).fill('超市');
+  await expect(page.getByText('奥克兰五金超市')).toBeVisible();
+  await expect(page.getByText('1 found')).toBeVisible();
+
+  // 同一天、同金额、同一家再记一次：存之前先提醒（不拦着）
+  await page.getByRole('button', { name: 'Capture' }).click();
+  await page.getByPlaceholder('Merchant', { exact: true }).fill('奥克兰五金超市');
+  await page.getByPlaceholder('Total (incl. GST)').fill('45.00');
+  await expect(page.getByText(/You may have recorded this already/)).toBeVisible();
+  await page.getByPlaceholder('Total (incl. GST)').fill('46.00');
+  await expect(page.getByText(/You may have recorded this already/)).not.toBeVisible();
+});
+
+test('editing a receipt asks before throwing away unsaved changes', async ({ page }) => {
+  await addReceipt(page, 'Edit Guard', '10.00', 'Other');
+  await page.getByText('Edit Guard').click();
+  await page.getByRole('button', { name: 'Edit' }).click();
+  await page.getByPlaceholder('Merchant', { exact: true }).fill('Edit Guard Changed');
+  // 先点"不放弃"：留在编辑里，内容还在
+  page.once('dialog', (d) => void d.dismiss());
+  await page.getByRole('button', { name: 'Cancel' }).first().click();
+  await expect(page.getByPlaceholder('Merchant', { exact: true })).toHaveValue(
+    'Edit Guard Changed',
+  );
+  // 再点"放弃"：回到详情，显示原来的名字
+  page.once('dialog', (d) => void d.accept());
+  await page.getByRole('button', { name: 'Cancel' }).first().click();
+  await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
+  await expect(page.getByRole('paragraph').filter({ hasText: /^Edit Guard$/ })).toBeVisible();
+});
+
+test('the tax reminder banner stays dismissed for the day', async ({ page }) => {
+  const banner = page.getByRole('button', { name: /View$/ });
+  // 没有到期事项的日子里横幅本来就不出现，这条只在出现时验证
+  if (!(await banner.isVisible().catch(() => false))) return;
+  await page.getByRole('button', { name: 'Dismiss' }).click();
+  await expect(banner).not.toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'More' })).toBeVisible();
+  await expect(banner).not.toBeVisible();
 });

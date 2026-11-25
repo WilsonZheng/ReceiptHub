@@ -24,17 +24,36 @@ const toDoc = (r: Receipt): Doc => ({
   amount: `${(r.totalCents / 100).toFixed(2)} ${Math.round(r.totalCents / 100)} ${(r.gstCents / 100).toFixed(2)}`,
 });
 
+// 每个索引对应的原文（小写拼成一串），给"包含这几个字"的匹配用
+const haystacks = new WeakMap<MiniSearch<Doc>, { id: string; text: string }[]>();
+
 export function buildIndex(receipts: Receipt[]): MiniSearch<Doc> {
   const idx = new MiniSearch<Doc>({
     fields: ['merchant', 'note', 'category', 'items', 'date', 'amount'],
     searchOptions: { fuzzy: 0.25, prefix: true },
   });
-  idx.addAll(receipts.filter((r) => !r.deleted).map(toDoc));
+  const docs = receipts.filter((r) => !r.deleted).map(toDoc);
+  idx.addAll(docs);
+  haystacks.set(
+    idx,
+    docs.map((d) => ({
+      id: d.id,
+      text: [d.merchant, d.note, d.category, d.items, d.date, d.amount].join('\n').toLowerCase(),
+    })),
+  );
   return idx;
 }
 
 export function searchReceipts(idx: MiniSearch<Doc>, query: string): string[] {
   const q = query.trim();
   if (!q) return [];
-  return idx.search(q).map((r) => String(r.id));
+  const ids = idx.search(q).map((r) => String(r.id));
+  // 分词搜索只认整词和词头：中文没有空格，"奥克兰五金超市"搜"超市"搜不到，
+  // "Hardware"搜"ware"也搜不到——再补一遍"原文里包含这几个字"
+  const needle = q.toLowerCase();
+  const seen = new Set(ids);
+  for (const h of haystacks.get(idx) ?? []) {
+    if (!seen.has(h.id) && h.text.includes(needle)) ids.push(h.id);
+  }
+  return ids;
 }

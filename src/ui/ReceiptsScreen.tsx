@@ -46,7 +46,22 @@ export function ReceiptsScreen({ space, onCapture }: { space: Space; onCapture: 
   useEffect(() => {
     const sub = liveQuery(() => db.receipts.toArray()).subscribe({
       next: (rs) => {
-        setAll(rs.filter((r) => !r.deleted).sort((a, b) => (a.date < b.date ? 1 : -1)));
+        // 日期新的在前；同一天的按录入先后，刚记的排最上面（以前同一天的顺序每次打开都可能不一样）
+        setAll(
+          rs
+            .filter((r) => !r.deleted)
+            .sort((a, b) =>
+              a.date !== b.date
+                ? a.date < b.date
+                  ? 1
+                  : -1
+                : a.createdAt < b.createdAt
+                  ? 1
+                  : a.createdAt > b.createdAt
+                    ? -1
+                    : 0,
+            ),
+        );
         setLoaded(true);
       },
     });
@@ -140,6 +155,11 @@ export function ReceiptsScreen({ space, onCapture }: { space: Space; onCapture: 
             </button>
           ))}
         </div>
+        {query.trim() && visible.length > 0 && (
+          <p className="-my-1 px-1 text-xs muted" role="status">
+            {t('foundCount').replace('{n}', String(visible.length))}
+          </p>
+        )}
         {missing.count > 0 && (
           <div
             className="panel flex items-center justify-between gap-3 px-4 py-2.5 text-sm"

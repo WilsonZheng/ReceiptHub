@@ -15,6 +15,27 @@ describe('toBase64', () => {
   });
 });
 
+describe('canAccess', () => {
+  it('is true when the repo answers', async () => {
+    mockFetch(200, { id: 1 });
+    expect(await client().canAccess()).toBe(true);
+  });
+  it('is false for a bad credential (401) or one without access to the repo (404)', async () => {
+    mockFetch(401, { message: 'Bad credentials' });
+    expect(await client().canAccess()).toBe(false);
+    vi.restoreAllMocks();
+    mockFetch(404, { message: 'Not Found' });
+    expect(await client().canAccess()).toBe(false);
+  });
+  it('throws on a server error or rate limit so the caller can let the user in', async () => {
+    mockFetch(502, {});
+    await expect(client().canAccess()).rejects.toThrow();
+    vi.restoreAllMocks();
+    mockFetch(403, { message: 'rate limit exceeded' });
+    await expect(client().canAccess()).rejects.toThrow();
+  });
+});
+
 describe('getFile', () => {
   it('decodes content and returns sha', async () => {
     mockFetch(200, { content: btoa('[]'), sha: 'abc' });

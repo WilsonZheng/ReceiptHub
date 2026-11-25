@@ -47,6 +47,21 @@ export class GithubClient {
     return res;
   }
 
+  /**
+   * 这个凭证能不能进数据仓库：解锁时先问一次，输错了当场说，而不是进去之后才冒出同步失败。
+   * 凭证无效是 401；没有这个仓库的权限时 GitHub 回 404（不暴露私有仓库是否存在）。
+   * 断网、限流（403）、服务故障等其它情况抛异常，由调用方决定（照样放行）。
+   */
+  async canAccess(): Promise<boolean> {
+    const res = await fetch(`${API}/repos/${this.repo}`, {
+      headers: { Authorization: `Bearer ${this.token}`, Accept: 'application/vnd.github+json' },
+    });
+    if (res.ok) return true;
+    // 403 不算密码错：GitHub 限流也回 403，这时把人挡在外面比放进去更糟
+    if (res.status === 401 || res.status === 404) return false;
+    throw new Error(`github access check: ${res.status}`);
+  }
+
   async getFile(path: string): Promise<RemoteFile | null> {
     const res = await this.req(path);
     if (res.status === 404) return null;

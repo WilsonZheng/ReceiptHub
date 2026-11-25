@@ -49,4 +49,13 @@ describe('searchReceipts', () => {
     const idx2 = buildIndex([...docs, rec('4', { merchant: 'Deleted Shop', deleted: true })]);
     expect(searchReceipts(idx2, 'deleted shop')).not.toContain('4');
   });
+  it('finds chinese text in the middle of a name (no spaces to split on)', () => {
+    const idx2 = buildIndex([rec('8', { merchant: '奥克兰五金超市', note: '会计代记' })]);
+    expect(searchReceipts(idx2, '超市')).toContain('8');
+    expect(searchReceipts(idx2, '代记')).toContain('8');
+  });
+  it('finds the tail of a word', () => {
+    const idx2 = buildIndex([rec('9', { merchant: 'Bunnings Warehouse' })]);
+    expect(searchReceipts(idx2, 'house')).toEqual(['9']);
+  });
 });

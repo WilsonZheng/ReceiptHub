@@ -59,6 +59,7 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 - **PAT 即密码**：锁屏只有一个"密码"框，填入的是 fine-grained PAT（仅授权 ReceiptHub-data 的 Contents R/W），明文存 localStorage。
 - 用户先后**否决**了 OAuth+Worker 方案和密码加密 vault 方案——要简单。风险已知悉接受（设备锁屏即边界）。
 - 锁屏 UI **禁止出现** GitHub/PAT/token/仓库名字样（防机制泄露），e2e 有断言守护。
+- **解锁前先验证**：`GithubClient.canAccess()` 打一次 `GET /repos/<数据仓库>`，401/404 当场提示「密码不对」不放行；断网、403（限流也是 403）或 5xx 照样放行（本地优先）。同步中途凭证失效时顶部红条带「重新输入密码」，直接回锁屏——本机票据和 outbox 都留着。设置里的「清除凭证并锁定」要就地确认，有没传完的改动会写出条数。
 - 自动安全扫描会对明文 PAT 报 HIGH——这是有意的已记录决策，不要"修复"。
 
 ## NZ 业务规则
@@ -113,7 +114,11 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 - i18n（`lib/i18n.ts`）：中英字典用 `Record<MsgKey, string>` 做**编译期完整性校验**——漏译直接编译失败。`html lang` 随语言切换（驱动原生控件）。
 - 导航语义：空间（公司/个人）只由右上角全局开关控制；列表内的筛选是收支维度——**同一维度只在一个地方控制**。
 - 收入显示 `+` 绿色，支出 `-` 默认色。
-- 搜索（minisearch）索引：商家/items/备注/分类（**中英双语**）/日期/总额/GST。
+- 搜索（minisearch）索引：商家/items/备注/分类（**中英双语**）/日期/总额/GST。分词搜索只认整词和词头，中文没有空格（「奥克兰五金超市」搜「超市」搜不到），所以 `searchReceipts` 再补一遍原文包含匹配。
+- **全屏弹层一律 `createPortal` 到 `document.body`**（`PhotoViewer`、`DateField` 抽屉、`ImageCropper`）：留在 `<main>` 里会被顶部导航压住——看照片时右上角的 ✕ 曾经点不到。弹层根节点要 `stopPropagation` 掉 touchstart/touchmove，否则在弹层上往下拖会触发外层的下拉刷新。
+- 一句话的操作反馈用 `lib/toast.ts` 的 `showToast`（顶部，2.6 秒自动消失）。文案**不要带商家名**：e2e 大量用 `getByText(商家名)`，toast 里再出现一次就是 strict mode 冲突。
+- 录入时的重复提醒：`findDuplicate`（同空间、同收支、同一天、同金额、同商家）只提醒不拦截；报税前的重复检查仍在税务页。
+- 详情页编辑有未保存改动时，返回/右滑/Esc 先 `confirm`；税务横幅点了关闭当天不再出现（`rh.tax.bannerDismissed` = 日期 + 事项 id）。
 
 ## e2e 约定（Playwright）
 

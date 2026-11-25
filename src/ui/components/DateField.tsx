@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocale, useT } from '../../lib/i18n';
 import { formatDate, formatMonth, localToday } from '../../lib/dates';
 import { addMonths, monthGrid, weekdayLabels } from '../../lib/calendar';
@@ -54,93 +55,99 @@ export function DateField({
         {formatDate(value, locale)}
       </button>
 
-      {open && (
-        <div
-          className="fade-in fixed inset-0 z-50 flex items-end justify-center"
-          style={{ background: 'rgba(0,0,0,.45)' }}
-          onClick={() => setOpen(false)}
-        >
+      {/* 挂到 body：留在页面里遮罩盖不住顶部导航，日历打开时还能点到别的 Tab */}
+      {open &&
+        createPortal(
           <div
-            className="sheet-in w-full max-w-lg rounded-t-2xl p-4 pb-[max(env(safe-area-inset-bottom),1rem)]"
-            style={{ background: 'var(--color-surface)' }}
-            onClick={(e) => e.stopPropagation()}
+            className="fade-in fixed inset-0 z-50 flex items-end justify-center"
+            style={{ background: 'rgba(0,0,0,.45)' }}
+            onClick={() => setOpen(false)}
+            // 在日历上往下拖不该触发外层的下拉刷新
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
           >
-            {/* 月份导航 */}
-            <div className="mb-2 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => setViewYm(addMonths(viewYm, -1))}
-                aria-label={t('prevMonth')}
-                className="rounded-full px-3 py-1 text-lg"
-                style={{ background: 'var(--color-surface-2)' }}
-              >
-                ‹
-              </button>
-              <span className="text-sm font-bold">{formatMonth(viewYm, locale)}</span>
-              <button
-                type="button"
-                onClick={() => setViewYm(addMonths(viewYm, 1))}
-                aria-label={t('nextMonth')}
-                className="rounded-full px-3 py-1 text-lg"
-                style={{ background: 'var(--color-surface-2)' }}
-              >
-                ›
-              </button>
-            </div>
-
-            {/* 星期表头 */}
             <div
-              className="grid grid-cols-7 text-center text-[10px]"
-              style={{ color: 'var(--color-ink-muted)' }}
+              className="sheet-in w-full max-w-lg rounded-t-2xl p-4 pb-[max(env(safe-area-inset-bottom),1rem)]"
+              style={{ background: 'var(--color-surface)' }}
+              onClick={(e) => e.stopPropagation()}
             >
-              {weekdayLabels(locale).map((w, i) => (
-                <span key={i} className="py-1">
-                  {w}
-                </span>
-              ))}
-            </div>
+              {/* 月份导航 */}
+              <div className="mb-2 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => setViewYm(addMonths(viewYm, -1))}
+                  aria-label={t('prevMonth')}
+                  className="rounded-full px-3 py-1 text-lg"
+                  style={{ background: 'var(--color-surface-2)' }}
+                >
+                  ‹
+                </button>
+                <span className="text-sm font-bold">{formatMonth(viewYm, locale)}</span>
+                <button
+                  type="button"
+                  onClick={() => setViewYm(addMonths(viewYm, 1))}
+                  aria-label={t('nextMonth')}
+                  className="rounded-full px-3 py-1 text-lg"
+                  style={{ background: 'var(--color-surface-2)' }}
+                >
+                  ›
+                </button>
+              </div>
 
-            {/* 日期网格 */}
-            <div className="grid grid-cols-7">
-              {monthGrid(viewYm).map((iso) => {
-                const inMonth = iso.startsWith(viewYm);
-                const selected = iso === value;
-                const isToday = iso === todayIso;
-                return (
-                  <button
-                    type="button"
-                    key={iso}
-                    onClick={() => pick(iso)}
-                    className="mx-auto my-0.5 flex h-9 w-9 items-center justify-center rounded-full text-sm"
-                    style={{
-                      background: selected ? 'var(--color-accent)' : 'transparent',
-                      color: selected
-                        ? 'var(--color-accent-ink)'
-                        : inMonth
-                          ? 'var(--color-ink)'
-                          : 'var(--color-ink-muted)',
-                      opacity: inMonth ? 1 : 0.45,
-                      border: isToday && !selected ? '1px solid var(--color-accent)' : 'none',
-                      fontWeight: selected || isToday ? 700 : 400,
-                    }}
-                  >
-                    {Number(iso.slice(8))}
-                  </button>
-                );
-              })}
-            </div>
+              {/* 星期表头 */}
+              <div
+                className="grid grid-cols-7 text-center text-[10px]"
+                style={{ color: 'var(--color-ink-muted)' }}
+              >
+                {weekdayLabels(locale).map((w, i) => (
+                  <span key={i} className="py-1">
+                    {w}
+                  </span>
+                ))}
+              </div>
 
-            {/* 快捷：今天 */}
-            <button
-              type="button"
-              onClick={() => pick(todayIso)}
-              className="btn-secondary mt-2 w-full"
-            >
-              {t('today')}
-            </button>
-          </div>
-        </div>
-      )}
+              {/* 日期网格 */}
+              <div className="grid grid-cols-7">
+                {monthGrid(viewYm).map((iso) => {
+                  const inMonth = iso.startsWith(viewYm);
+                  const selected = iso === value;
+                  const isToday = iso === todayIso;
+                  return (
+                    <button
+                      type="button"
+                      key={iso}
+                      onClick={() => pick(iso)}
+                      className="mx-auto my-0.5 flex h-9 w-9 items-center justify-center rounded-full text-sm"
+                      style={{
+                        background: selected ? 'var(--color-accent)' : 'transparent',
+                        color: selected
+                          ? 'var(--color-accent-ink)'
+                          : inMonth
+                            ? 'var(--color-ink)'
+                            : 'var(--color-ink-muted)',
+                        opacity: inMonth ? 1 : 0.45,
+                        border: isToday && !selected ? '1px solid var(--color-accent)' : 'none',
+                        fontWeight: selected || isToday ? 700 : 400,
+                      }}
+                    >
+                      {Number(iso.slice(8))}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 快捷：今天 */}
+              <button
+                type="button"
+                onClick={() => pick(todayIso)}
+                className="btn-secondary mt-2 w-full"
+              >
+                {t('today')}
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

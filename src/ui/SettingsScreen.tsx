@@ -21,6 +21,7 @@ import { categoryLabel, isKnownCategory } from '../lib/categories';
 import { setTheme, useTheme, type Theme } from '../lib/theme';
 import { syncNow, useSyncStatus } from '../sync/useSync';
 import { versionLabel } from '../lib/appVersion';
+import { showToast } from '../lib/toast';
 import type { CheckResult } from './useAppUpdate';
 import type { AppConfig, Kind, Space } from '../data/types';
 
@@ -65,6 +66,7 @@ export function SettingsScreen({
   // 自定义分类的双语译名就地编辑：一次编辑一个，editingLabel 存 canonical key
   const [editingLabel, setEditingLabel] = useState<string | null>(null);
   const [labelDraft, setLabelDraft] = useState('');
+  const [confirmingLock, setConfirmingLock] = useState(false);
   const locale = useLocale();
   const theme = useTheme();
   const t = useT();
@@ -265,6 +267,7 @@ export function SettingsScreen({
               setAiProvider(aiProvider);
               setAiKey(aiProvider, aiKey);
               setAiSaved(true);
+              if (aiKey.trim()) showToast(t('keySavedToast'));
               setTimeout(() => setAiSaved(false), 1500);
             }}
             className="btn-secondary whitespace-nowrap"
@@ -300,7 +303,7 @@ export function SettingsScreen({
             {t('syncNow')}
           </button>
           <a
-            className="btn-secondary inline-block"
+            className="btn-secondary"
             href={`https://github.com/${DATA_REPO}`}
             target="_blank"
             rel="noreferrer"
@@ -386,16 +389,41 @@ export function SettingsScreen({
 
       <section className="panel panel-pad">
         <h3 className="font-bold">{t('access')}</h3>
-        <button
-          onClick={() => {
-            clearPat();
-            onPatCleared();
-          }}
-          className="btn-secondary mt-2"
-          style={{ color: 'var(--color-danger)', background: 'var(--color-surface-2)' }}
-        >
-          {t('clearPat')}
-        </button>
+        {!confirmingLock ? (
+          <button
+            onClick={() => setConfirmingLock(true)}
+            className="btn-secondary mt-2"
+            style={{ color: 'var(--color-danger)', background: 'var(--color-surface-2)' }}
+          >
+            {t('clearPat')}
+          </button>
+        ) : (
+          // 就地确认：以前点一下就直接退出，手滑一次就得重新找密码
+          <div className="mt-2 flex flex-col gap-2">
+            <p className="font-semibold">{t('lockConfirm')}</p>
+            <p className="text-xs muted">{t('lockKeepsData')}</p>
+            {pending > 0 && (
+              <p className="text-xs" style={{ color: 'var(--color-warning)' }}>
+                {t('lockPendingWarn').replace('{n}', String(pending))}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <button onClick={() => setConfirmingLock(false)} className="btn-secondary flex-1">
+                {t('cancel')}
+              </button>
+              <button
+                onClick={() => {
+                  clearPat();
+                  onPatCleared();
+                }}
+                className="btn-secondary flex-1"
+                style={{ background: 'var(--color-danger)', color: 'var(--color-danger-ink)' }}
+              >
+                {t('confirmLock')}
+              </button>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );

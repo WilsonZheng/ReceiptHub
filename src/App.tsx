@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { getPat } from './lib/settings';
+import { clearPat, getPat } from './lib/settings';
+import { useToast } from './lib/toast';
 import type { Space } from './data/types';
 import { onAuthError, syncNow } from './sync/useSync';
 import { useLocale, useT } from './lib/i18n';
@@ -24,6 +25,16 @@ const JUST_UPDATED = consumeJustUpdated();
 
 // 当前 Tab 和空间存 sessionStorage：更新刷新后回到原来的页面，而不是跳回拍照页
 const UI_KEY = 'rh.ui';
+// 税务横幅点了关闭：同一件事当天不再出现（以前每次打开 App 都重新弹出来），第二天再提醒
+const TAX_BANNER_KEY = 'rh.tax.bannerDismissed';
+function loadBannerDismissed(): string {
+  try {
+    return localStorage.getItem(TAX_BANNER_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
 function loadUi(): { tab: Tab; space: Space } {
   try {
     const v = JSON.parse(sessionStorage.getItem(UI_KEY) ?? '{}') as Partial<{
@@ -42,12 +53,23 @@ export default function App() {
   const [space, setSpace] = useState<Space>(() => loadUi().space);
   const [showUpdated, setShowUpdated] = useState(JUST_UPDATED);
   const [authBanner, setAuthBanner] = useState(false);
-  const [taxBannerDismissed, setTaxBannerDismissed] = useState(false);
+  const [taxBannerDismissed, setTaxBannerDismissed] = useState(loadBannerDismissed);
+  const toast = useToast();
   const t = useT();
   const locale = useLocale();
   const tax = useTaxAgenda();
   // 最紧急的一件：逾期或 7 天内到期才在每页顶部提醒（14 天内只亮角标，不打扰）
   const taxDue = tax.urgent.find((x) => x.due <= addDays(tax.today, 7)) ?? null;
+
+  const taxBannerKey = taxDue ? `${tax.today}:${taxDue.id}` : '';
+  function dismissTaxBanner() {
+    setTaxBannerDismissed(taxBannerKey);
+    try {
+      localStorage.setItem(TAX_BANNER_KEY, taxBannerKey);
+    } catch {
+      /* 存不了就只在这次打开期间不再显示 */
+    }
+  }
 
   const update = useAppUpdate();
 
@@ -148,6 +170,22 @@ export default function App() {
           <span className="text-sm muted">{t('updating')}</span>
         </div>
       )}
+      {toast && !showUpdated && !update.needRefresh && (
+        <div className="pointer-events-none fixed inset-x-0 top-[max(env(safe-area-inset-top),0.5rem)] z-[60] flex justify-center px-4">
+          <span
+            key={toast.id}
+            className="panel drop-in flex max-w-full items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold"
+            role="status"
+          >
+            <Check
+              className="icon shrink-0"
+              style={{ color: 'var(--color-accent)' }}
+              aria-hidden="true"
+            />
+            <span className="truncate">{toast.text}</span>
+          </span>
+        </div>
+      )}
       {showUpdated && (
         <div className="drop-in pointer-events-none fixed inset-x-0 top-[max(env(safe-area-inset-top),0.5rem)] z-50 flex justify-center">
           <span
@@ -183,13 +221,26 @@ export default function App() {
       {updateLayer}
       {authBanner && (
         <div
-          className="drop-in px-4 py-2 text-center text-xs font-semibold"
+          className="drop-in flex flex-wrap items-center justify-center gap-2 px-4 py-2 text-center text-xs font-semibold"
           style={{ background: 'var(--color-danger)', color: 'var(--color-danger-ink)' }}
+          role="alert"
         >
-          {t('authBanner')}{' '}
+          <span>{t('authBanner')}</span>
+          {/* 直接回锁屏重新输入：本机的票据和没传完的改动都留着，解锁后继续上传 */}
           <button
-            className="ml-2 rounded-full px-3 py-1 text-xs font-bold"
-            style={{ background: 'rgba(0,0,0,.2)' }}
+            className="min-h-9 rounded-full px-3 py-1 text-xs font-bold"
+            style={{ background: 'rgba(0,0,0,.25)' }}
+            onClick={() => {
+              clearPat();
+              setAuthBanner(false);
+              setUnlocked(false);
+            }}
+          >
+            {t('reenterPassword')}
+          </button>
+          <button
+            className="min-h-9 rounded-full px-3 py-1 text-xs font-bold"
+            style={{ background: 'rgba(0,0,0,.25)' }}
             onClick={() => setAuthBanner(false)}
           >
             {t('dismiss')}
@@ -206,7 +257,7 @@ export default function App() {
         </div>
       </header>
       <TopNav tab={tab} onChange={setTab} />
-      {taxDue && !taxBannerDismissed && tab !== 'tax' && (
+      {taxDue && taxBannerDismissed !== taxBannerKey && tab !== 'tax' && (
         <div
           className="drop-in panel mx-4 mb-2 flex items-center gap-2 px-3 py-1.5 text-xs sm:mx-6"
           style={{ borderColor: 'var(--color-warning)' }}
@@ -223,7 +274,7 @@ export default function App() {
             </span>
           </button>
           <button
-            onClick={() => setTaxBannerDismissed(true)}
+            onClick={dismissTaxBanner}
             aria-label={t('dismiss')}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
           >

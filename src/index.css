@@ -282,6 +282,11 @@ select:focus-visible,
   }
 }
 
+/* 同步进行中：状态点轻轻呼吸 */
+.sync-pulse {
+  animation: skeleton-pulse 1.1s ease-in-out infinite;
+}
+
 /* 无障碍：尊重系统"减弱动态效果"设置 */
 @media (prefers-reduced-motion: reduce) {
   *,

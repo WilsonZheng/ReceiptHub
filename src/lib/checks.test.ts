@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Receipt } from '../data/types';
 import { gstFromTotalCents } from './money';
-import { receiptChecks } from './checks';
+import { findDuplicate, receiptChecks } from './checks';
 import { entertainmentAdjustment } from './gst';
 import { buildIcs } from './ics';
 
@@ -18,6 +18,34 @@ const rec = (id: string, totalCents: number, extra: Partial<Receipt> = {}): Rece
   createdAt: '',
   updatedAt: '',
   ...extra,
+});
+
+describe('findDuplicate', () => {
+  const draft = {
+    space: 'company' as const,
+    kind: 'expense' as const,
+    date: '2026-10-01',
+    totalCents: 9230,
+    merchant: 'Z ENERGY.',
+  };
+  it('finds the same merchant, day and amount, ignoring case and punctuation', () => {
+    expect(findDuplicate([rec('a', 9230)], draft)?.id).toBe('a');
+  });
+  it('ignores deleted receipts, other days, other amounts, the other space and refunds', () => {
+    const others = [
+      rec('a', 9230, { deleted: true }),
+      rec('b', 9230, { date: '2026-10-02' }),
+      rec('c', 9231),
+      rec('d', 9230, { space: 'personal' }),
+      rec('e', 9230, { kind: 'income' }),
+    ];
+    expect(findDuplicate(others, draft)).toBeUndefined();
+  });
+  it('needs a merchant name', () => {
+    expect(findDuplicate([rec('a', 9230, { merchant: '' })], { ...draft, merchant: ' ' })).toBe(
+      undefined,
+    );
+  });
 });
 
 describe('receiptChecks', () => {

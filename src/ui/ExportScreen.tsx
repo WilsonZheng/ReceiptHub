@@ -111,6 +111,7 @@ export function ExportScreen({ space }: { space: Space }) {
             <button
               key={p.kind}
               onClick={() => setSel({ kind: p.kind })}
+              aria-pressed={active}
               className="segmented-btn"
               style={
                 active
@@ -124,8 +125,15 @@ export function ExportScreen({ space }: { space: Space }) {
         })}
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <DateField label={t('fromDate')} value={from} onChange={(v) => setSel({ from: v, to })} />
-        <DateField label={t('toDate')} value={to} onChange={(v) => setSel({ from, to: v })} />
+        {/* 看得见的标签：两个日期框长得一样，以前分不出哪个是开始、哪个是结束 */}
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-semibold muted">{t('fromDate')}</span>
+          <DateField label={t('fromDate')} value={from} onChange={(v) => setSel({ from: v, to })} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-semibold muted">{t('toDate')}</span>
+          <DateField label={t('toDate')} value={to} onChange={(v) => setSel({ from, to: v })} />
+        </div>
       </div>
       <div className="panel panel-pad">
         <p className="text-xs" style={{ color: 'var(--color-ink-muted)' }}>
@@ -161,12 +169,14 @@ export function ExportScreen({ space }: { space: Space }) {
               <span className="amount">{formatNZD(gst.box8)}</span>
             </div>
             <div className="flex justify-between gap-3 font-bold">
-              <span>{t('netGst')} </span>
+              {/* 和统计页同一种说法：写明是该交还是能退，不让人去猜负号的意思 */}
+              <span>{t(gst.box15 < 0 ? 'gstRefund' : 'gstToPay')} </span>
               <span
                 className="amount"
                 style={{ color: gst.box15 < 0 ? 'var(--color-accent)' : 'var(--color-ink)' }}
               >
-                {formatNZD(gst.box15)}
+                {gst.box15 < 0 ? '+' : ''}
+                {formatNZD(Math.abs(gst.box15))}
               </span>
             </div>
           </div>

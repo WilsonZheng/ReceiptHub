@@ -23,6 +23,9 @@ import { db } from '../data/db';
 import { DateField } from './components/DateField';
 import { ImageCropper } from './components/ImageCropper';
 import { knownMerchantSpelling, lastCategoryFor } from '../lib/merchants';
+import { findDuplicate } from '../lib/checks';
+import { showToast } from '../lib/toast';
+import { PhotoViewer } from './components/PhotoViewer';
 import type { Kind, Receipt, Space } from '../data/types';
 
 export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () => void }) {
@@ -188,6 +191,11 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
   // 没有照片也能存：会计代记、暂时找不到票据的开支先记账，之后在详情页补（列表里标「缺票据」）
   const canSave = merchant.trim() && totalCents !== null && category && !saving;
   const started = files.length > 0 || !!merchant.trim() || !!total.trim();
+  // 存之前就提醒：同一天、同金额、同一家已经记过（同一张小票拍了两次最常见）
+  const duplicate =
+    totalCents !== null
+      ? findDuplicate(history, { space, kind, date, totalCents, merchant })
+      : undefined;
 
   async function handleSave() {
     if (!canSave || totalCents === null) return;
@@ -209,6 +217,10 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
           .filter(Boolean),
         files,
       });
+      // 只报金额：保存后马上跳到列表，商家名在那里看得到
+      showToast(
+        t('savedToast').replace('{a}', `${kind === 'income' ? '+' : '-'}${formatNZD(totalCents)}`),
+      );
       clearDraft();
       setFiles([]);
       setMerchant('');
@@ -413,20 +425,8 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         )}
       </div>
 
-      {/* 点缩略图全屏预览，点任意处关闭 */}
-      {preview && previewUrl && (
-        <div
-          className="fade-in fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,.88)' }}
-          onClick={() => setPreview(null)}
-        >
-          <img
-            src={previewUrl}
-            className="zoom-in max-h-full max-w-full rounded-lg object-contain"
-            alt=""
-          />
-        </div>
-      )}
+      {/* 点缩略图全屏预览：点照片放大看小字，点旁边或 ✕ 关闭 */}
+      {preview && previewUrl && <PhotoViewer url={previewUrl} onClose={() => setPreview(null)} />}
       {cropFile && cropFile.kind !== 'pdf' && (
         <ImageCropper
           file={cropFile}
@@ -483,6 +483,8 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         <input
           list="merchants"
           placeholder={t('merchant')}
+          aria-label={t('merchant')}
+          autoCapitalize="words"
           value={merchant}
           onChange={(e) => setMerchant(e.target.value)}
           onBlur={fillCategoryFromHistory}
@@ -496,6 +498,8 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         <input
           inputMode="decimal"
           placeholder={t('totalInclGst')}
+          aria-label={t('totalInclGst')}
+          aria-invalid={total.trim() !== '' && totalCents === null}
           value={total}
           onChange={(e) => {
             setTotal(e.target.value);
@@ -564,6 +568,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
 
         <textarea
           placeholder={t('itemsPlaceholder')}
+          aria-label={t('itemsPlaceholder')}
           value={items}
           onChange={(e) => setItems(e.target.value)}
           rows={Math.min(6, Math.max(2, items.split('\n').length))}
@@ -571,11 +576,24 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
         />
         <textarea
           placeholder={t('noteOptional')}
+          aria-label={t('noteOptional')}
           value={note}
           onChange={(e) => setNote(e.target.value)}
           rows={Math.min(4, Math.max(1, note.split('\n').length))}
           className="field resize-none"
         />
+        {duplicate && (
+          <p
+            className="panel px-3 py-2 text-sm"
+            role="status"
+            style={{ color: 'var(--color-warning)' }}
+          >
+            {t('dupWarning')
+              .replace('{m}', duplicate.merchant)
+              .replace('{d}', formatDate(duplicate.date, locale))
+              .replace('{a}', formatNZD(duplicate.totalCents))}
+          </p>
+        )}
         <button
           disabled={!canSave}
           onClick={() => void handleSave()}

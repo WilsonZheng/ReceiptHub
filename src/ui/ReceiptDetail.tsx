@@ -25,6 +25,8 @@ import { filedGstPeriodOf } from '../lib/taxState';
 import { DateField } from './components/DateField';
 import { kindOf, type Kind, type PhotoRef, type Receipt } from '../data/types';
 import { holdBusy, holdBusyWhilePicking } from '../lib/busy';
+import { showToast } from '../lib/toast';
+import { PhotoViewer } from './components/PhotoViewer';
 
 function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -162,12 +164,12 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
       if (e.key !== 'Escape') return;
       if (document.querySelector('.sheet-in')) return; // 日期抽屉自己处理
       if (zoomUrl) setZoomUrl(null);
-      else if (editing) setEditing(false);
+      else if (editing) cancelEdit();
       else onClose();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [zoomUrl, editing, onClose]);
+  }); // 每次渲染重新挂：cancelEdit 要看到最新的表单内容才知道有没有未保存的修改
 
   if (!receipt) return null;
 
@@ -201,13 +203,30 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
         note: note || undefined,
         items: items.length ? items : undefined,
       });
+      showToast(t('changesSaved'));
       onClose();
     } catch {
       setSaveError(t('saveErr')); // 写库失败要说出来，不能点了没反应
     }
   }
 
+  // 表单和已存的内容有没有出入：有改动时，返回/右滑/Esc 先问一句，免得一个手势丢掉刚填的内容
+  function isDirty(): boolean {
+    if (!receipt) return false;
+    return (
+      kind !== kindOf(receipt) ||
+      merchant !== receipt.merchant ||
+      totalCents !== receipt.totalCents ||
+      date !== receipt.date ||
+      category !== receipt.category ||
+      note !== (receipt.note ?? '') ||
+      itemsText !== (receipt.items ?? []).join('\n') ||
+      (isCompany && gstCents !== receipt.gstCents)
+    );
+  }
+
   function cancelEdit() {
+    if (isDirty() && !window.confirm(t('discardEditConfirm'))) return;
     if (receipt) resetForm(receipt);
     setEditing(false);
   }
@@ -223,6 +242,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
       const processed = await Promise.all(list.map(processFile));
       setReceipt(await attachFiles(id, processed));
       setPhotos(await db.photos.where('receiptId').equals(id).toArray());
+      showToast(t('attachedToast'));
     } catch (e) {
       // 超大 PDF 重试也没用，单独说明；其它情况才提示再试一次
       setAttachError(
@@ -243,6 +263,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
     setSaveError('');
     try {
       await softDeleteReceipt(id);
+      showToast(t('deletedToast'));
       onClose();
     } catch {
       setSaveError(t('deleteErr'));
@@ -598,6 +619,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
                   <button
                     key={c}
                     onClick={() => setCategory(c)}
+                    aria-pressed={category === c}
                     className="chip-btn"
                     style={
                       category === c
@@ -655,20 +677,8 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
           </>
         )}
 
-        {/* 点照片全屏查看，点任意处关闭 */}
-        {zoomUrl && (
-          <div
-            className="fade-in fixed inset-0 z-50 flex items-center justify-center p-4"
-            style={{ background: 'rgba(0,0,0,.88)' }}
-            onClick={() => setZoomUrl(null)}
-          >
-            <img
-              src={zoomUrl}
-              className="zoom-in max-h-full max-w-full rounded-lg object-contain"
-              alt=""
-            />
-          </div>
-        )}
+        {/* 点照片全屏查看：点照片放大看小字，点旁边或 ✕ 关闭 */}
+        {zoomUrl && <PhotoViewer url={zoomUrl} onClose={() => setZoomUrl(null)} />}
       </div>
     </div>
   );
