@@ -10,7 +10,7 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import { db, type PhotoRow } from '../data/db';
-import { attachFiles, softDeleteReceipt, updateReceipt } from '../data/repo';
+import { attachFiles, detachPhoto, softDeleteReceipt, updateReceipt } from '../data/repo';
 import { processFile, MAX_PDF_BYTES } from '../lib/image';
 import { downloadPhoto } from '../sync/engine';
 import { GithubClient } from '../sync/github';
@@ -63,6 +63,7 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
   const [zoomUrl, setZoomUrl] = useState<string | null>(null);
   const [attaching, setAttaching] = useState(false);
   const [attachError, setAttachError] = useState('');
+  const [removingPhoto, setRemovingPhoto] = useState<string | null>(null);
   const [saveError, setSaveError] = useState('');
   // 别的设备拍的照片：本机还没有，打开详情时从云端下载
   const [photosLoaded, setPhotosLoaded] = useState(false);
@@ -253,6 +254,20 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
     }
   }
 
+  // 挂错了的照片/PDF 可以拿掉（以前只能加不能减，传错文件只好整张删了重记）
+  async function handleDetach(photoId: string) {
+    setAttachError('');
+    try {
+      setReceipt(await detachPhoto(id, photoId));
+      setPhotos((cur) => cur.filter((p) => p.id !== photoId));
+      showToast(t('attachmentRemoved'));
+    } catch {
+      setAttachError(t('saveErr'));
+    } finally {
+      setRemovingPhoto(null);
+    }
+  }
+
   function openPicker(ref: React.RefObject<HTMLInputElement | null>) {
     pickRelease.current?.();
     pickRelease.current = holdBusyWhilePicking();
@@ -295,6 +310,38 @@ export function ReceiptDetail({ id, onClose }: { id: string; onClose: () => void
             <img src={urls[i]} className="w-full" alt={receipt.merchant} />
           </button>
         )}
+        <div
+          className="flex flex-wrap items-center justify-end gap-2 border-t px-3 py-2 text-xs"
+          style={{ borderColor: 'var(--color-border)' }}
+        >
+          {removingPhoto === p.id ? (
+            <>
+              <span className="mr-auto font-semibold">{t('removeAttachmentConfirm')}</span>
+              <button
+                onClick={() => setRemovingPhoto(null)}
+                className="btn-secondary min-h-9 px-3 py-1 text-xs"
+              >
+                {t('cancel')}
+              </button>
+              <button
+                onClick={() => void handleDetach(p.id)}
+                className="btn-secondary min-h-9 px-3 py-1 text-xs"
+                style={{ background: 'var(--color-danger)', color: 'var(--color-danger-ink)' }}
+              >
+                {t('remove')}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setRemovingPhoto(p.id)}
+              className="btn-secondary min-h-9 px-3 py-1 text-xs"
+              style={{ color: 'var(--color-ink-muted)' }}
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              {t('removeAttachment')}
+            </button>
+          )}
+        </div>
       </div>
     ),
   );

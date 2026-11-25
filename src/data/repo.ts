@@ -76,6 +76,27 @@ export async function attachFiles(id: string, files: NewFile[]): Promise<Receipt
   return updated;
 }
 
+/**
+ * 把挂错的照片/PDF 从票据上拿掉：本地文件和还没传的上传任务一起清掉，月度记录不再引用它。
+ * 已经传到数据仓库的文件留在那里不删（照片文件不可变，没有记录引用就不会再被读到）。
+ */
+export async function detachPhoto(id: string, photoId: string): Promise<Receipt> {
+  const existing = await db.receipts.get(id);
+  if (!existing) throw new Error(`receipt ${id} not found`);
+  const updated: Receipt = {
+    ...existing,
+    photos: existing.photos.filter((p) => p.id !== photoId),
+    updatedAt: new Date().toISOString(),
+  };
+  await db.transaction('rw', [db.receipts, db.photos, db.outbox], async () => {
+    await db.photos.delete(photoId);
+    await db.outbox.filter((o) => o.kind === 'putPhoto' && o.refId === photoId).delete();
+    await db.receipts.put(updated);
+    await db.outbox.add({ kind: 'upsertReceipt', refId: id, attempts: 0 });
+  });
+  return updated;
+}
+
 export async function updateReceipt(
   id: string,
   patch: Partial<Omit<Receipt, 'id' | 'createdAt'>>,

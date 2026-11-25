@@ -61,6 +61,12 @@ async function addReceipt(page: Page, merchant: string, total: string, category:
   await page.getByRole('button', { name: 'Save', exact: true }).click();
 }
 
+// 已经存过一张之后再记一张：保存后停在票据页，先回拍照页
+async function addReceiptAgain(page: Page, merchant: string, total: string, category: string) {
+  await page.getByRole('button', { name: 'Capture' }).click();
+  await addReceipt(page, merchant, total, category);
+}
+
 test.beforeEach(async ({ page }) => {
   await mockGithub(page);
   await unlock(page);
@@ -840,4 +846,44 @@ test('the tax reminder banner stays dismissed for the day', async ({ page }) => 
   await page.reload();
   await expect(page.getByRole('button', { name: 'More' })).toBeVisible();
   await expect(banner).not.toBeVisible();
+});
+
+test('stats merchant rows jump to that merchant’s receipts; tapping the active tab leaves a receipt', async ({
+  page,
+}) => {
+  await addReceipt(page, 'Air New Zealand', '420.00', 'Travel');
+  await addReceiptAgain(page, 'New World', '30.00', 'Other');
+  await page.getByRole('button', { name: 'Stats' }).click();
+  await page.getByRole('button', { name: 'Show receipts from Air New Zealand' }).click();
+  // 带着商家名到票据页：只剩这一家（多个词是缩小范围，不会把 New World 也带出来）
+  await expect(page.getByPlaceholder(/Search merchant/)).toHaveValue('Air New Zealand');
+  await expect(page.getByText('1 found')).toBeVisible();
+  await expect(page.getByText('New World')).not.toBeVisible();
+
+  // 打开详情后再点一下「票据」Tab：回到列表
+  await page.getByText('Air New Zealand').click();
+  await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
+  await page.getByRole('button', { name: 'Receipts' }).click();
+  await expect(page.getByRole('button', { name: 'Edit' })).not.toBeVisible();
+  await expect(page.getByPlaceholder(/Search merchant/)).toBeVisible();
+});
+
+test('a wrongly attached photo can be removed from a receipt', async ({ page }) => {
+  await addReceipt(page, 'Wrong Photo Ltd', '20.00', 'Other');
+  await page.getByText('Wrong Photo Ltd').click();
+  await page.getByRole('button', { name: 'Remove this attachment' }).click();
+  await page.getByRole('button', { name: 'Remove', exact: true }).click(); // 就地确认
+  await expect(page.getByText('Attachment removed')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Preview photo' })).not.toBeVisible();
+  // 没有附件了：按「缺票据」处理，可以重新补
+  await expect(page.getByRole('button', { name: 'Back', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(page.getByText('No original')).toBeVisible();
+});
+
+test('a mistyped amount says what is wrong instead of just disabling Save', async ({ page }) => {
+  await page.getByPlaceholder('Total (incl. GST)').fill('12,5');
+  await expect(page.getByRole('alert')).toContainText('Enter the amount as a number');
+  await page.getByPlaceholder('Total (incl. GST)').fill('12.50');
+  await expect(page.getByRole('alert')).not.toBeVisible();
 });

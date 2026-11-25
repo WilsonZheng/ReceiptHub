@@ -30,6 +30,7 @@ npx prettier --write src e2e
 ## 部署
 
 - push `main` → `.github/workflows/deploy.yml` → GitHub Pages：https://wilsonzheng.github.io/ReceiptHub/
+- **部署成功不代表 CI 是绿的**：两个 workflow 互不依赖。2026-11-04 起 `ubuntu-latest` 变成 26.04，Playwright 1.60 在上面装不了浏览器，CI 的 e2e 悄悄停了三周没人发现（部署照常成功）。现在 CI 固定 `ubuntu-24.04`；推送后两个 workflow 都要看：`curl -s https://api.github.com/repos/WilsonZheng/ReceiptHub/actions/runs?per_page=4`（公开仓库匿名可读）。
 - 验证上线：轮询首页 HTML 里 `index-*.js` 的指纹变化（比查 Actions 状态更真实）。
 - **GITHUB_TOKEN 无法创建 Pages 站点**（创建需 admin 权限，`pages: write` 只能管部署）。站点已手动启用过一次；新仓库需在 Settings → Pages 选 GitHub Actions 源。
 - 本机 git 走个人 SSH 别名 `git@github.com-personal:`（~/.ssh/config）；`~/.gitconfig` 的 includeIf 使 sandbox 下自动用个人邮箱。**本机 gh CLI 登录的是公司账号，不能用于 WilsonZheng 名下的 API 写操作**——需要 API 时只能让用户操作或用匿名只读。
@@ -118,6 +119,8 @@ UI 只读写 IndexedDB（Dexie 4 表：receipts/photos/outbox/kv）
 - **全屏弹层一律 `createPortal` 到 `document.body`**（`PhotoViewer`、`DateField` 抽屉、`ImageCropper`）：留在 `<main>` 里会被顶部导航压住——看照片时右上角的 ✕ 曾经点不到。弹层根节点要 `stopPropagation` 掉 touchstart/touchmove，否则在弹层上往下拖会触发外层的下拉刷新。
 - 一句话的操作反馈用 `lib/toast.ts` 的 `showToast`（顶部，2.6 秒自动消失）。文案**不要带商家名**：e2e 大量用 `getByText(商家名)`，toast 里再出现一次就是 strict mode 冲突。
 - 录入时的重复提醒：`findDuplicate`（同空间、同收支、同一天、同金额、同商家）只提醒不拦截；报税前的重复检查仍在税务页。
+- 导航：再点一下当前 Tab 回到顶部，票据页同时关掉打开的详情（编辑中 `isBusy()` 时不打断）。统计页的商家行可点，带着商家名跳到票据页搜索（`receiptsQuery`，从导航切走就清掉）。多个搜索词是 AND（越搜越少）。
+- 详情页每个附件下面有「移除这个附件」（`detachPhoto`）：只去掉记录里的引用和本机文件，数据仓库里已上传的照片文件不删（照片不可变，没有记录引用就不会再被读到）。
 - 详情页编辑有未保存改动时，返回/右滑/Esc 先 `confirm`；税务横幅点了关闭当天不再出现（`rh.tax.bannerDismissed` = 日期 + 事项 id）。
 
 ## e2e 约定（Playwright）

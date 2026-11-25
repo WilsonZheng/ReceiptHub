@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db } from './db';
-import { attachFiles, listReceipts, saveReceipt, softDeleteReceipt, updateReceipt } from './repo';
+import {
+  attachFiles,
+  detachPhoto,
+  listReceipts,
+  saveReceipt,
+  softDeleteReceipt,
+  updateReceipt,
+} from './repo';
 
 beforeEach(async () => {
   await db.receipts.clear();
@@ -60,6 +67,22 @@ describe('attachFiles', () => {
     const updated = await attachFiles(rec.id, [{ full: new Blob(['p2']), kind: 'jpeg' }]);
     expect(updated.photos.map((p) => p.kind)).toEqual(['webp', 'jpeg']);
     expect(await db.photos.where('receiptId').equals(rec.id).count()).toBe(2);
+  });
+});
+
+describe('detachPhoto', () => {
+  it('drops the photo, its pending upload and the reference, and re-syncs the receipt', async () => {
+    const rec = await saveReceipt(input);
+    const extra = await attachFiles(rec.id, [{ full: new Blob(['p2']), kind: 'pdf' }]);
+    const pdf = extra.photos[1];
+    await db.outbox.clear();
+    await db.outbox.add({ kind: 'putPhoto', refId: pdf.id, attempts: 0 });
+
+    const updated = await detachPhoto(rec.id, pdf.id);
+    expect(updated.photos.map((p) => p.kind)).toEqual(['webp']);
+    expect(await db.photos.get(pdf.id)).toBeUndefined();
+    expect(await db.photos.where('receiptId').equals(rec.id).count()).toBe(1);
+    expect((await db.outbox.toArray()).map((o) => o.kind)).toEqual(['upsertReceipt']);
   });
 });
 

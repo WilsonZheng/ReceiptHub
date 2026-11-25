@@ -190,6 +190,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
   const gstCents = gstOverride ?? (totalCents !== null ? gstFromTotalCents(totalCents) : 0);
   // 没有照片也能存：会计代记、暂时找不到票据的开支先记账，之后在详情页补（列表里标「缺票据」）
   const canSave = merchant.trim() && totalCents !== null && category && !saving;
+  const amountInvalid = total.trim() !== '' && totalCents === null;
   const started = files.length > 0 || !!merchant.trim() || !!total.trim();
   // 存之前就提醒：同一天、同金额、同一家已经记过（同一张小票拍了两次最常见）
   const duplicate =
@@ -499,7 +500,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
           inputMode="decimal"
           placeholder={t('totalInclGst')}
           aria-label={t('totalInclGst')}
-          aria-invalid={total.trim() !== '' && totalCents === null}
+          aria-invalid={amountInvalid}
           value={total}
           onChange={(e) => {
             setTotal(e.target.value);
@@ -507,7 +508,13 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
             setGstOverride((g) => (g === 0 ? 0 : null));
           }}
           className="field amount"
+          style={amountInvalid ? { borderColor: 'var(--color-danger)' } : undefined}
         />
+        {amountInvalid && (
+          <p className="-mt-1 text-xs" role="alert" style={{ color: 'var(--color-danger)' }}>
+            {t('amountInvalid')}
+          </p>
+        )}
 
         {space === 'company' && totalCents !== null && (
           <div className="panel flex items-center justify-between px-3 py-2 text-sm muted">

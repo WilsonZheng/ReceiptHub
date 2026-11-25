@@ -19,6 +19,7 @@ import { CalendarClock, Check, RefreshCw, X } from 'lucide-react';
 import { addDays } from './lib/taxCalendar';
 import { consumeJustUpdated, versionLabel } from './lib/appVersion';
 import { useAppUpdate } from './ui/useAppUpdate';
+import { isBusy } from './lib/busy';
 
 // 每次页面加载只算一次（放模块级：StrictMode 会把 useState 初始化跑两遍）
 const JUST_UPDATED = consumeJustUpdated();
@@ -55,6 +56,10 @@ export default function App() {
   const [authBanner, setAuthBanner] = useState(false);
   const [taxBannerDismissed, setTaxBannerDismissed] = useState(loadBannerDismissed);
   const toast = useToast();
+  // 统计页点某个商家：跳到票据页并带上搜索词
+  const [receiptsQuery, setReceiptsQuery] = useState('');
+  // 再点一下当前 Tab：回到顶部（票据页同时关掉打开的详情）——iOS 的习惯手势
+  const [navTick, setNavTick] = useState(0);
   const t = useT();
   const locale = useLocale();
   const tax = useTaxAgenda();
@@ -86,6 +91,21 @@ export default function App() {
     const id = setTimeout(() => setShowUpdated(false), 4000);
     return () => clearTimeout(id);
   }, [showUpdated]);
+
+  function changeTab(next: Tab) {
+    if (next === tab) {
+      if (isBusy()) return; // 正在编辑：不打断
+      setNavTick((n) => n + 1);
+      mainRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    setReceiptsQuery('');
+    setTab(next);
+  }
+  function findReceipts(merchant: string) {
+    setReceiptsQuery(merchant);
+    setTab('receipts');
+  }
 
   function tapUpdate() {
     // 有正在录入的内容时先确认：草稿只在内存里，刷新会丢
@@ -256,7 +276,7 @@ export default function App() {
           <SpaceToggle space={space} onChange={setSpace} />
         </div>
       </header>
-      <TopNav tab={tab} onChange={setTab} />
+      <TopNav tab={tab} onChange={changeTab} />
       {taxDue && taxBannerDismissed !== taxBannerKey && tab !== 'tax' && (
         <div
           className="drop-in panel mx-4 mb-2 flex items-center gap-2 px-3 py-1.5 text-xs sm:mx-6"
@@ -313,9 +333,20 @@ export default function App() {
         <div key={tab} className="screen-in">
           {tab === 'capture' && <CaptureScreen space={space} onSaved={() => setTab('receipts')} />}
           {tab === 'receipts' && (
-            <ReceiptsScreen space={space} onCapture={() => setTab('capture')} />
+            <ReceiptsScreen
+              space={space}
+              onCapture={() => setTab('capture')}
+              initialQuery={receiptsQuery}
+              resetSignal={navTick}
+            />
           )}
-          {tab === 'stats' && <DashboardScreen space={space} onCapture={() => setTab('capture')} />}
+          {tab === 'stats' && (
+            <DashboardScreen
+              space={space}
+              onCapture={() => setTab('capture')}
+              onFindReceipts={findReceipts}
+            />
+          )}
           {tab === 'tax' && <TaxScreen />}
           {tab === 'export' && <ExportScreen space={space} />}
           {tab === 'settings' && (

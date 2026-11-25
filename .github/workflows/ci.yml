@@ -5,7 +5,10 @@ on:
     branches: [main]
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04 in Nov 2026 and Playwright 1.60 has no browser build for it
+    # ("Playwright does not support chromium on ubuntu26.04-x64"), so e2e silently stopped running.
+    # Go back to ubuntu-latest once @playwright/test is on a version that supports it.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

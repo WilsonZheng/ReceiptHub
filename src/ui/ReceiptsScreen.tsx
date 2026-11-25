@@ -14,10 +14,20 @@ import { ReceiptDetail } from './ReceiptDetail';
 
 const isMissing = (r: Receipt) => kindOf(r) === 'expense' && !hasOriginal(r);
 
-export function ReceiptsScreen({ space, onCapture }: { space: Space; onCapture: () => void }) {
+export function ReceiptsScreen({
+  space,
+  onCapture,
+  initialQuery = '',
+  resetSignal = 0,
+}: {
+  space: Space;
+  onCapture: () => void;
+  initialQuery?: string; // 从统计页点商家过来时带的搜索词
+  resetSignal?: number; // 再点一下「票据」Tab：关掉详情回到列表顶部
+}) {
   const [all, setAll] = useState<Receipt[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(initialQuery);
   // 空间由右上角全局开关决定；列表内只筛收支维度
   const [kindFilter, setKindFilter] = useState<Kind | 'all'>('all');
   // 只看缺原始票据的支出（会计代记、暂时没票的）——是收支之外的另一个维度，只在这里控制
@@ -28,6 +38,12 @@ export function ReceiptsScreen({ space, onCapture }: { space: Space; onCapture: 
     setOpenId(null);
     savedScroll.current = 0;
   }, [space]);
+  const firstSignal = useRef(resetSignal);
+  useEffect(() => {
+    if (resetSignal === firstSignal.current) return;
+    savedScroll.current = 0;
+    setOpenId(null);
+  }, [resetSignal]);
   // 打开详情前记住列表滚动位置，返回时恢复（长列表核对时不用从头再找）
   const rootRef = useRef<HTMLDivElement>(null);
   const savedScroll = useRef(0);

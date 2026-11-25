@@ -30,7 +30,8 @@ const haystacks = new WeakMap<MiniSearch<Doc>, { id: string; text: string }[]>()
 export function buildIndex(receipts: Receipt[]): MiniSearch<Doc> {
   const idx = new MiniSearch<Doc>({
     fields: ['merchant', 'note', 'category', 'items', 'date', 'amount'],
-    searchOptions: { fuzzy: 0.25, prefix: true },
+    // 多个词要同时命中：搜"bunnings drill"是在缩小范围，不是把带 drill 的全拉进来
+    searchOptions: { fuzzy: 0.25, prefix: true, combineWith: 'AND' },
   });
   const docs = receipts.filter((r) => !r.deleted).map(toDoc);
   idx.addAll(docs);

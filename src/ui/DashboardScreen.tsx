@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { liveQuery } from 'dexie';
 import { Camera, ChevronLeft, ChevronRight } from 'lucide-react';
+
 import { db } from '../data/db';
 import { summarize } from '../lib/csv';
 import { formatNZD } from '../lib/money';
@@ -196,7 +197,15 @@ function GstCard({
   );
 }
 
-export function DashboardScreen({ space, onCapture }: { space: Space; onCapture: () => void }) {
+export function DashboardScreen({
+  space,
+  onCapture,
+  onFindReceipts,
+}: {
+  space: Space;
+  onCapture: () => void;
+  onFindReceipts: (merchant: string) => void; // 点商家：去票据页看这家的每一张
+}) {
   const [all, setAll] = useState<Receipt[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [modeSel, setModeSel] = useState<Mode>(loadMode);
@@ -616,7 +625,9 @@ export function DashboardScreen({ space, onCapture }: { space: Space; onCapture:
                           <div className="flex justify-between">
                             <span>
                               {categoryLabel(c, locale, catLabels)}{' '}
-                              <span style={{ color: 'var(--color-ink-muted)' }}>{pct}%</span>
+                              <span style={{ color: 'var(--color-ink-muted)' }}>
+                                {pct === 0 && cents > 0 ? '<1' : pct}%
+                              </span>
                             </span>
                             <span style={{ fontFamily: 'var(--font-numeric)', color }}>
                               {k === 'expense' ? '-' : '+'}
@@ -630,7 +641,8 @@ export function DashboardScreen({ space, onCapture }: { space: Space; onCapture:
                             <div
                               className="h-full rounded-full"
                               style={{
-                                width: `${pct}%`,
+                                // 不到 1% 的也留一小截，否则像是没有这一类
+                                width: `${Math.max(pct, 1.5)}%`,
                                 background: color,
                                 transition: 'width .3s cubic-bezier(.32,.72,0,1)',
                               }}
@@ -640,18 +652,22 @@ export function DashboardScreen({ space, onCapture }: { space: Space; onCapture:
                         {expanded && (
                           <ul className="screen-in mt-1 flex flex-col gap-0.5 pl-3">
                             {catMerchants.map(([m, mc]) => (
-                              <li
-                                key={m}
-                                className="flex justify-between"
-                                style={{ color: 'var(--color-ink-muted)' }}
-                              >
-                                <span className="min-w-0 [overflow-wrap:anywhere]">— {m}</span>
-                                <span
-                                  className="shrink-0 pl-2"
-                                  style={{ fontFamily: 'var(--font-numeric)' }}
+                              <li key={m}>
+                                <button
+                                  onClick={() => onFindReceipts(m)}
+                                  aria-label={`${t('showReceiptsOf')} ${m}`}
+                                  className="flex min-h-9 w-full items-center justify-between text-left"
+                                  style={{ color: 'var(--color-ink-muted)' }}
                                 >
-                                  {formatNZD(mc)}
-                                </span>
+                                  <span className="min-w-0 [overflow-wrap:anywhere]">— {m}</span>
+                                  <span
+                                    className="flex shrink-0 items-center gap-1 pl-2"
+                                    style={{ fontFamily: 'var(--font-numeric)' }}
+                                  >
+                                    {formatNZD(mc)}
+                                    <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
+                                  </span>
+                                </button>
                               </li>
                             ))}
                           </ul>
@@ -669,15 +685,26 @@ export function DashboardScreen({ space, onCapture }: { space: Space; onCapture:
       {/* 商家排行（支出） */}
       {topMerch.length > 0 && (
         <Card title={t('topMerchants')}>
-          <ul className="flex flex-col gap-1 text-xs">
+          {/* 每行可点：跳到票据页看这家的每一张（以前只有合计，想核对得自己去搜） */}
+          <ul className="flex flex-col text-xs">
             {topMerch.map(([m, cents], i) => (
-              <li key={m} className="flex justify-between">
-                <span className="min-w-0 [overflow-wrap:anywhere]">
-                  <span style={{ color: 'var(--color-ink-muted)' }}>{i + 1}.</span> {m}
-                </span>
-                <span className="shrink-0 pl-2" style={{ fontFamily: 'var(--font-numeric)' }}>
-                  -{formatNZD(cents)}
-                </span>
+              <li key={m}>
+                <button
+                  onClick={() => onFindReceipts(m)}
+                  aria-label={`${t('showReceiptsOf')} ${m}`}
+                  className="flex min-h-10 w-full items-center justify-between text-left"
+                >
+                  <span className="min-w-0 [overflow-wrap:anywhere]">
+                    <span style={{ color: 'var(--color-ink-muted)' }}>{i + 1}.</span> {m}
+                  </span>
+                  <span
+                    className="flex shrink-0 items-center gap-1 pl-2"
+                    style={{ fontFamily: 'var(--font-numeric)' }}
+                  >
+                    -{formatNZD(cents)}
+                    <ChevronRight className="h-3.5 w-3.5 muted" aria-hidden="true" />
+                  </span>
+                </button>
               </li>
             ))}
           </ul>

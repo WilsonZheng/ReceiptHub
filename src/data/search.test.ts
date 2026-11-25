@@ -58,4 +58,12 @@ describe('searchReceipts', () => {
     const idx2 = buildIndex([rec('9', { merchant: 'Bunnings Warehouse' })]);
     expect(searchReceipts(idx2, 'house')).toEqual(['9']);
   });
+  it('narrows with every extra word instead of widening', () => {
+    const idx2 = buildIndex([
+      rec('10', { merchant: 'Air New Zealand' }),
+      rec('11', { merchant: 'New World' }),
+    ]);
+    expect(searchReceipts(idx2, 'air new zealand')).toEqual(['10']);
+    expect(searchReceipts(idx2, 'new')).toHaveLength(2);
+  });
 });
