@@ -26,6 +26,7 @@ import { knownMerchantSpelling, lastCategoryFor } from '../lib/merchants';
 import { findDuplicate } from '../lib/checks';
 import { showToast } from '../lib/toast';
 import { PhotoViewer } from './components/PhotoViewer';
+import { fill } from './taxAgenda';
 import type { Kind, Receipt, Space } from '../data/types';
 
 export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () => void }) {
@@ -220,7 +221,7 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
       });
       // 只报金额：保存后马上跳到列表，商家名在那里看得到
       showToast(
-        t('savedToast').replace('{a}', `${kind === 'income' ? '+' : '-'}${formatNZD(totalCents)}`),
+        fill(t('savedToast'), { a: `${kind === 'income' ? '+' : '-'}${formatNZD(totalCents)}` }),
       );
       clearDraft();
       setFiles([]);
@@ -595,10 +596,11 @@ export function CaptureScreen({ space, onSaved }: { space: Space; onSaved: () =>
             role="status"
             style={{ color: 'var(--color-warning)' }}
           >
-            {t('dupWarning')
-              .replace('{m}', duplicate.merchant)
-              .replace('{d}', formatDate(duplicate.date, locale))
-              .replace('{a}', formatNZD(duplicate.totalCents))}
+            {fill(t('dupWarning'), {
+              m: duplicate.merchant,
+              d: formatDate(duplicate.date, locale),
+              a: formatNZD(duplicate.totalCents),
+            })}
           </p>
         )}
         <button

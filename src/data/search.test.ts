@@ -53,6 +53,8 @@ describe('searchReceipts', () => {
     const idx2 = buildIndex([rec('8', { merchant: '奥克兰五金超市', note: '会计代记' })]);
     expect(searchReceipts(idx2, '超市')).toContain('8');
     expect(searchReceipts(idx2, '代记')).toContain('8');
+    expect(searchReceipts(idx2, '奥克兰 超市')).toContain('8');
+    expect(searchReceipts(idx2, '奥克兰 银行')).not.toContain('8');
   });
   it('finds the tail of a word', () => {
     const idx2 = buildIndex([rec('9', { merchant: 'Bunnings Warehouse' })]);

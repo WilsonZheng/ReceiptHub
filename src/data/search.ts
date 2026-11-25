@@ -51,10 +51,11 @@ export function searchReceipts(idx: MiniSearch<Doc>, query: string): string[] {
   const ids = idx.search(q).map((r) => String(r.id));
   // 分词搜索只认整词和词头：中文没有空格，"奥克兰五金超市"搜"超市"搜不到，
   // "Hardware"搜"ware"也搜不到——再补一遍"原文里包含这几个字"
-  const needle = q.toLowerCase();
+  // 空格隔开的每一段都要出现（"奥克兰 超市"也搜得到「奥克兰五金超市」）
+  const parts = q.toLowerCase().split(/\s+/);
   const seen = new Set(ids);
   for (const h of haystacks.get(idx) ?? []) {
-    if (!seen.has(h.id) && h.text.includes(needle)) ids.push(h.id);
+    if (!seen.has(h.id) && parts.every((p) => h.text.includes(p))) ids.push(h.id);
   }
   return ids;
 }
